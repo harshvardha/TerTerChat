@@ -50,7 +50,7 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *dynamicShardedCach
 		metrics:    &cacheMetrics{},
 	}
 
-	for i := 0; i < minShards; i++ {
+	for i := range minShards {
 		cache.shards[i] = &cacheShard[T]{
 			items: make(map[string]T),
 		}
@@ -79,6 +79,8 @@ func (dsc *dynamicShardedCache[T]) checkAndResize() {
 	// if loadFactor is more than 0.2(20%) and currentShardCount < maxShards then scale up
 	// if loadFactor is less than 0.2 then and currentShardCount > minShards scale down
 	loadFactor := float64((dsc.metrics.misses) / (dsc.metrics.hits + dsc.metrics.misses))
+	dsc.metrics.averageLoad = loadFactor
+	dsc.metrics.lastCheckTime = time.Now()
 
 	if loadFactor >= 0.2 && currentShardCount < int32(dsc.maxShards) {
 		newShardCount := min(int(currentShardCount)*2, dsc.maxShards)
