@@ -168,6 +168,7 @@ func (dsc *dynamicShardedCache[T]) Remove(key string) bool {
 	}
 
 	delete(shard.items, key)
+	dsc.metrics.evictions++
 	return true
 }
 
