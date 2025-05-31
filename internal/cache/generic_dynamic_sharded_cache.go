@@ -102,14 +102,14 @@ func (dsc *dynamicShardedCache[T]) resize(newShardCount int) {
 
 	// creating a new shards array
 	newShards := make([]*cacheShard[T], newShardCount)
-	for i := 0; i < newShardCount; i++ {
+	for i := range newShardCount {
 		newShards[i] = &cacheShard[T]{
 			items: make(map[string]T),
 		}
 	}
 
 	// rehashing and redistributing the existing items
-	for i := 0; i < currentShards; i++ {
+	for i := range currentShards {
 		dsc.shards[i].mutex.Lock()
 		for key, value := range dsc.shards[i].items {
 			shardIndex := dsc.hashKey(key, newShardCount)
@@ -144,20 +144,30 @@ func (dsc *dynamicShardedCache[T]) Get(key string) (any, bool) {
 	shard.mutex.RLock()
 	defer shard.mutex.RLock()
 
-	item, ok := shard.items[key]
+	items, ok := shard.items[key]
 	if !ok {
 		atomic.AddUint64(&dsc.metrics.misses, 1)
 		return nil, false
 	}
 
 	atomic.AddUint64(&dsc.metrics.hits, 1)
-	return item, true
+	return items, true
 }
 
 func (dsc *dynamicShardedCache[T]) Remove(key string) bool {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
+	shard := dsc.getShard(key)
+	shard.mutex.Lock()
+	defer shard.mutex.Unlock()
+
+	_, ok := shard.items[key]
+	if !ok {
+		return false
+	}
+
+	delete(shard.items, key)
 	return true
 }
 
@@ -168,6 +178,8 @@ func (dsc *dynamicShardedCache[T]) Set(key string, value T) {
 	shard := dsc.getShard(key)
 	shard.mutex.Lock()
 	defer shard.mutex.Unlock()
+
+	shard.items[key] = value
 }
 
 func min(a int, b int) int {
