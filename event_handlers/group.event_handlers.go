@@ -3,6 +3,7 @@ package eventhandlers
 import (
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/harshvardha/TerTerChat/internal/services"
@@ -30,19 +31,23 @@ type action struct {
 	EmittedAt string   `json:"emittedAt"`
 }
 
-func (ge *GroupEvent) GroupActionsEventHandler(event <-chan struct{}) {
-	<-event
-	log.Printf("EVENT: %s, TIME: %s", ge.Name, ge.EmittedAt.Format(time.RFC1123))
-	action, err := json.Marshal(action{
-		Name:      ge.Name,
-		GroupID:   ge.GroupID,
-		UserIDs:   ge.UserIDs,
-		EmittedAt: ge.EmittedAt.Format(time.RFC1123),
-	})
-	if err != nil {
-		log.Printf("Unable to marshal group event action %v", err)
-		return
+func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for groupEvent := range event {
+		log.Printf("[EVENT]: %s, [TIME]: %s", groupEvent.Name, groupEvent.EmittedAt.Format(time.RFC1123))
+		action, err := json.Marshal(action{
+			Name:      groupEvent.Name,
+			GroupID:   groupEvent.GroupID,
+			UserIDs:   groupEvent.UserIDs,
+			EmittedAt: groupEvent.EmittedAt.Format(time.RFC1123),
+		})
+		if err != nil {
+			log.Printf("[EVENT]: Unable to marshal group event action %v", err)
+			return
+		}
+
+		go groupEvent.NotificationService.PushNotification(groupEvent.UserIDs, action)
 	}
 
-	go ge.NotificationService.PushNotification(ge.UserIDs, action)
+	log.Printf("[EVENT]: GroupActionsEventHandler stopped for %v because event channel was closed, [TIME]: %s", (<-event).UserIDs, time.Now().Format(time.RFC1123))
 }

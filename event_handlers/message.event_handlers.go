@@ -3,6 +3,7 @@ package eventhandlers
 import (
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/harshvardha/TerTerChat/internal/database"
@@ -28,17 +29,21 @@ const (
 	DELETE_MESSAGE = "DELETE_MESSAGE"
 )
 
-func (me *MessageEvent) MessageEventHandler(event <-chan struct{}) {
-	<-event
-	log.Printf("EVENT: %s, TIME: %s", me.Name, me.EmittedAt.Format(time.RFC1123))
-	msg, err := json.Marshal(message{
-		Message:     me.Message,
-		MessageType: me.Name,
-	})
-	if err != nil {
-		log.Printf("Unable to marshal message: %v", err)
-		return
+func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for messageEvent := range event {
+		log.Printf("[EVENT]: %s, [TIME]: %s", messageEvent.Name, messageEvent.EmittedAt.Format(time.RFC1123))
+		msg, err := json.Marshal(message{
+			Message:     messageEvent.Message,
+			MessageType: messageEvent.Name,
+		})
+		if err != nil {
+			log.Printf("[EVENT]: Unable to marshal message: %v", err)
+			return
+		}
+
+		go messageEvent.NotificationService.PushNotification(messageEvent.UserIDs, msg)
 	}
 
-	go me.NotificationService.PushNotification(me.UserIDs, msg)
+	log.Printf("[EVENT]: Message event handler for %v stopped because event channel was closed, [TIME]: %s", (<-event).UserIDs, time.Now().Format(time.RFC1123))
 }
