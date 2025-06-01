@@ -10,6 +10,12 @@ type Notification struct {
 	mutex       sync.RWMutex
 }
 
+func NewNotificaitonService() *Notification {
+	return &Notification{
+		connections: make(map[string]net.Conn),
+	}
+}
+
 func (conn *Notification) PushNotification(user_ids []string, message []byte) {
 	conn.mutex.RLock()
 	defer conn.mutex.RUnlock()
