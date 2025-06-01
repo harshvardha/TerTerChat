@@ -7,28 +7,27 @@ import (
 	openapi "github.com/twilio/twilio-go/rest/verify/v2"
 )
 
-type twilioConfig struct {
-	twilioAccountSid   string
+type TwilioConfig struct {
 	verifyServiceSid   string
-	twilioAuthToken    string
 	customMessage      string
 	customFriendlyName string
 	client             *twilio.RestClient
 }
 
-func NewOTPCache(twilioAccountSid string, verifyServiceSid string, twilioAuthToken string,
-	customMessage string, customFriendlyName string, client *twilio.RestClient) *twilioConfig {
-	return &twilioConfig{
-		twilioAccountSid:   twilioAccountSid,
+func NewOTPService(twilioAccountSid string, verifyServiceSid string, twilioAuthToken string,
+	customMessage string, customFriendlyName string) *TwilioConfig {
+	return &TwilioConfig{
 		verifyServiceSid:   verifyServiceSid,
-		twilioAuthToken:    twilioAuthToken,
 		customMessage:      customMessage,
 		customFriendlyName: customFriendlyName,
-		client:             client,
+		client: twilio.NewRestClientWithParams(twilio.ClientParams{
+			Username: twilioAccountSid,
+			Password: twilioAuthToken,
+		}),
 	}
 }
 
-func (tc *twilioConfig) SendOTP(phonenumber string) (bool, error) {
+func (tc *TwilioConfig) SendOTP(phonenumber string) (bool, error) {
 	params := &openapi.CreateVerificationParams{}
 	params.SetTo(phonenumber)
 	params.SetChannel("sms")
@@ -43,7 +42,7 @@ func (tc *twilioConfig) SendOTP(phonenumber string) (bool, error) {
 	return true, nil
 }
 
-func (tc *twilioConfig) VerifyOTP(phonenumber string, code string) (bool, error) {
+func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) (bool, error) {
 	params := &openapi.CreateVerificationCheckParams{}
 	params.SetTo(phonenumber)
 	params.SetCode(code)
