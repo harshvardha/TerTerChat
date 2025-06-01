@@ -21,7 +21,7 @@ type cacheMetrics struct {
 	lastCheckTime time.Time
 }
 
-type dynamicShardedCache[T any] struct {
+type DynamicShardedCache[T any] struct {
 	shards      []*cacheShard[T]
 	shardCount  int32
 	minShards   int
@@ -32,7 +32,7 @@ type dynamicShardedCache[T any] struct {
 }
 
 // creating new sharded cache
-func NewDynamicShardedCache[T any](minShards, maxShards int) *dynamicShardedCache[T] {
+func NewDynamicShardedCache[T any](minShards, maxShards int) *DynamicShardedCache[T] {
 	if minShards < 1 {
 		minShards = 1
 	}
@@ -41,7 +41,7 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *dynamicShardedCach
 		maxShards = 4 * minShards
 	}
 
-	cache := &dynamicShardedCache[T]{
+	cache := &DynamicShardedCache[T]{
 		shards:     make([]*cacheShard[T], minShards),
 		shardCount: int32(minShards),
 		minShards:  minShards,
@@ -60,19 +60,20 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *dynamicShardedCach
 	return cache
 }
 
-func (dsc *dynamicShardedCache[T]) monitorAndAdjust() {
+func (dsc *DynamicShardedCache[T]) monitorAndAdjust() {
+	// ticker will be used to monitor the cache to decide whether scaling is required or not
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
 	select {
 	case <-ticker.C:
 		dsc.checkAndResize()
-	case <-dsc.stopChan:
+	case <-dsc.stopChan: // signal to stop cache monitoring
 		return
 	}
 }
 
-func (dsc *dynamicShardedCache[T]) checkAndResize() {
+func (dsc *DynamicShardedCache[T]) checkAndResize() {
 	currentShardCount := atomic.LoadInt32(&dsc.shardCount)
 
 	// calculating load factor(based on hits and misses)
@@ -91,7 +92,7 @@ func (dsc *dynamicShardedCache[T]) checkAndResize() {
 	}
 }
 
-func (dsc *dynamicShardedCache[T]) resize(newShardCount int) {
+func (dsc *DynamicShardedCache[T]) resize(newShardCount int) {
 	dsc.resizeMutex.Lock()
 	defer dsc.resizeMutex.Unlock()
 
@@ -125,18 +126,20 @@ func (dsc *dynamicShardedCache[T]) resize(newShardCount int) {
 	dsc.metrics.resizeEvents++
 }
 
-func (dsc *dynamicShardedCache[T]) hashKey(key string, shardCount int) int {
+func (dsc *DynamicShardedCache[T]) hashKey(key string, shardCount int) int {
+	// 32-bit fnv 1-a hashing algorithm is used beacause it is light on cpu
+	// because it performs only two simple operations: multiplication and XOR
 	hasher := fnv.New32a()
 	hasher.Write([]byte(key))
 	return int(hasher.Sum32()) % shardCount
 }
 
-func (dsc *dynamicShardedCache[T]) getShard(key string) *cacheShard[T] {
+func (dsc *DynamicShardedCache[T]) getShard(key string) *cacheShard[T] {
 	shardIndex := dsc.hashKey(key, int(dsc.shardCount))
 	return dsc.shards[shardIndex]
 }
 
-func (dsc *dynamicShardedCache[T]) Get(key string) (any, bool) {
+func (dsc *DynamicShardedCache[T]) Get(key string) (any, bool) {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -154,7 +157,7 @@ func (dsc *dynamicShardedCache[T]) Get(key string) (any, bool) {
 	return items, true
 }
 
-func (dsc *dynamicShardedCache[T]) Remove(key string) bool {
+func (dsc *DynamicShardedCache[T]) Remove(key string) bool {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -172,7 +175,7 @@ func (dsc *dynamicShardedCache[T]) Remove(key string) bool {
 	return true
 }
 
-func (dsc *dynamicShardedCache[T]) Set(key string, value T) {
+func (dsc *DynamicShardedCache[T]) Set(key string, value T) {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
