@@ -11,7 +11,7 @@ import (
 
 type ConnectionEvent struct {
 	Name                string
-	UserID              string
+	Phonenumber         string
 	ConnectionInstance  net.Conn
 	NotificationService *services.Notification
 	EmittedAt           time.Time
@@ -27,11 +27,11 @@ func ConnectionEventHandler(event chan ConnectionEvent, wg *sync.WaitGroup) {
 	for connectionEvent := range event {
 		switch connectionEvent.Name {
 		case CONNECTED:
-			go connectionEvent.NotificationService.AddUserConnection(connectionEvent.UserID, connectionEvent.ConnectionInstance)
+			go connectionEvent.NotificationService.AddUserConnection(connectionEvent.Phonenumber, connectionEvent.ConnectionInstance)
 		case DISCONNECTED:
-			go connectionEvent.NotificationService.RemoveUserConnection(connectionEvent.UserID)
+			go connectionEvent.NotificationService.RemoveUserConnection(connectionEvent.Phonenumber)
 		}
 	}
 
-	log.Printf("[EVENT]: ConnectionEventHandler stopped for %s because event channel was closed, [TIME]: %s", (<-event).UserID, time.Now().Format(time.RFC1123))
+	log.Printf("[EVENT]: ConnectionEventHandler stopped for %s because event channel was closed, [TIME]: %s", (<-event).Phonenumber, time.Now().Format(time.RFC1123))
 }
