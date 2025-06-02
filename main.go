@@ -99,12 +99,15 @@ func main() {
 	// communication channel for connection event handler and tcp server
 	connectionEventEmitterChannel := make(chan eventhandlers.ConnectionEvent)
 
+	// notification service for pushing real time updates to users based on events
+	notificationService := services.NewNotificaitonService()
+
 	// setting up the apiConfig struct for REST server
 	apiConfig := controllers.ApiConfig{
 		DB:                              db,
 		JwtSecret:                       jwtSecret,
 		TwilioConfig:                    twilioConfig,
-		NotificationService:             services.NewNotificaitonService(),
+		NotificationService:             notificationService,
 		MessageEventEmitterChannel:      messageEventEmitterChannel,
 		GroupActionsEventEmitterChannel: groupActionsEventEmitterChannel,
 		MessageCache:                    &cache.DynamicShardedCache[[]database.Message]{},
@@ -130,7 +133,7 @@ func main() {
 
 	// starting tcp server
 	wg.Add(1)
-	go servers.StartTCPServer(tcpPort, quit, &wg)
+	go servers.StartTCPServer(tcpPort, notificationService, connectionEventEmitterChannel, quit, &wg)
 
 	// starting rest api server
 	wg.Add(1)
