@@ -2,6 +2,7 @@ package servers
 
 import (
 	"bufio"
+	"crypto/tls"
 	"io"
 	"log"
 	"net"
@@ -9,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	eventhandlers "github.com/harshvardha/TerTerChat/event_handlers"
+	"github.com/harshvardha/TerTerChat/internal/services"
 )
 
 const (
@@ -16,10 +20,14 @@ const (
 	pongMessage  = "_PONG_\n"
 	pingInterval = 10 * time.Second
 	pingTimeout  = 5 * time.Second
+
+	// server certificate and key file paths
+	certificateFile = "server.crt"
+	keyFile         = "server.key"
 )
 
 // heartbeat mechanism to check whether the client connection is still alive or not
-func handleConnections(connection net.Conn, wg *sync.WaitGroup) {
+func handleConnections(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer connection.Close()
 
@@ -30,10 +38,10 @@ func handleConnections(connection net.Conn, wg *sync.WaitGroup) {
 	stopChan := make(chan struct{}) // this will be used to know whether to stop the heartbeat mechanism for the connection or not
 
 	// reader go-routine
-	go readFromConnection(connection, writer, stopChan)
+	go readFromConnection(connection, phonenumber, notificationService, connectionEventChannel, writer, stopChan)
 
 	// writer go-routine
-	go writeToConnection(connection, writer, stopChan)
+	go writeToConnection(connection, phonenumber, notificationService, connectionEventChannel, writer, stopChan)
 
 	// blocking until signal recieved to stop heartbeat mechanism
 	<-stopChan
@@ -41,7 +49,7 @@ func handleConnections(connection net.Conn, wg *sync.WaitGroup) {
 }
 
 // reader go-routine to read pong messages if server sends ping or respond with pong messages if client sends ping
-func readFromConnection(connection net.Conn, writer chan<- []byte, stopChan chan<- struct{}) {
+func readFromConnection(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer chan<- []byte, stopChan chan<- struct{}) {
 	defer func() {
 		log.Printf("[CONNECTION READER FOR %s]: Exiiting", connection.RemoteAddr())
 		stopChan <- struct{}{} //signal to stop the heartbeat mechanism
@@ -61,6 +69,15 @@ func readFromConnection(connection net.Conn, writer chan<- []byte, stopChan chan
 				log.Printf("[CONNECTION READER FOR %s]: client connection closed.", connection.RemoteAddr())
 			} else {
 				log.Printf("[CONNECTION READER FOR %s]: error reading message from client, ERR: %v", connection.RemoteAddr(), err)
+			}
+
+			// emitting disconnect event to connection event handler
+			connectionEventChannel <- eventhandlers.ConnectionEvent{
+				Name:                "DISCONNECTED",
+				Phonenumber:         phonenumber,
+				ConnectionInstance:  nil,
+				NotificationService: notificationService,
+				EmittedAt:           time.Now(),
 			}
 
 			return
@@ -84,7 +101,7 @@ func readFromConnection(connection net.Conn, writer chan<- []byte, stopChan chan
 	}
 }
 
-func writeToConnection(connection net.Conn, writer <-chan []byte, stopChan chan<- struct{}) {
+func writeToConnection(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer <-chan []byte, stopChan chan<- struct{}) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer func() {
 		log.Printf("[CONNECTION WRITER FOR %s]: Exiting.", connection.RemoteAddr())
@@ -102,34 +119,73 @@ func writeToConnection(connection net.Conn, writer <-chan []byte, stopChan chan<
 			connection.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if _, err := connection.Write(message); err != nil {
 				log.Printf("[CONNECTION WRITER FOR %s]: error writing to connection, ERR: %v", connection.RemoteAddr(), err)
-				return //connection is broken
+
+				// emitting connection disconnected event
+				connectionEventChannel <- eventhandlers.ConnectionEvent{
+					Name:                "DISCONNECTED",
+					Phonenumber:         phonenumber,
+					ConnectionInstance:  nil,
+					NotificationService: notificationService,
+					EmittedAt:           time.Now(),
+				}
+
+				return
 			}
 		case <-ticker.C:
 			connection.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if _, err := connection.Write([]byte(pingMessage)); err != nil {
 				log.Printf("[CONNECTION WRITER FOR %s]: error writing to connection, ERR: %v", connection.RemoteAddr(), err)
-				return // connection is broken
+
+				// emitting connection disconnected event
+				connectionEventChannel <- eventhandlers.ConnectionEvent{
+					Name:                "DISCONNECTED",
+					Phonenumber:         phonenumber,
+					ConnectionInstance:  nil,
+					NotificationService: notificationService,
+					EmittedAt:           time.Now(),
+				}
+
+				return
 			}
 		}
 	}
 }
 
-func StartTCPServer(port string, quit <-chan os.Signal, wg *sync.WaitGroup) {
+func StartTCPServer(port string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, quit <-chan os.Signal, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	// loading server certificate and private key
+	certificate, err := tls.LoadX509KeyPair(certificateFile, keyFile)
+	if err != nil {
+		log.Fatalf("[TCP SERVER]: failed to load server certificate and key file: %v", err)
+	}
+
+	// configuring TLS for server
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{certificate},
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS13,
+		CipherSuites: []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+	}
+
 	log.Printf("[TCP SERVER]: Starting TCP server at port: %s", port)
 
 	// creating a listner to listen connection infinetly until shutdown
-	listener, err := net.Listen("tcp", ":"+port)
+	listener, err := tls.Listen("tcp", ":"+port, tlsConfig)
 	if err != nil {
 		log.Fatal("[TCP LISTENER]: Failed to start server: ", err)
 	}
 	defer listener.Close()
+	log.Printf("[TCP SERVER]: server listening securely on %s", port)
 
 	go func() {
 		<-quit
 		log.Println("[TCP SERVER]: Shutdown signal recieved.")
 		listener.Close()
 	}()
+
+	// creating a reader to read from connections when user get connected to add to notfication service
+	buffer := make([]byte, 8)
 
 	// listening for connections
 	for {
@@ -144,9 +200,24 @@ func StartTCPServer(port string, quit <-chan os.Signal, wg *sync.WaitGroup) {
 			continue
 		}
 
+		// emitting connected event to connection event handler
+		n, err := conn.Read(buffer)
+		if err != nil {
+			log.Printf("[TCP SERVER]: error reading phonenumber from connection: %v", err)
+			continue
+		}
+		phonenumber := strings.TrimSpace(string(buffer[:n]))
+		connectionEventChannel <- eventhandlers.ConnectionEvent{
+			Name:                "CONNECTED",
+			Phonenumber:         phonenumber,
+			ConnectionInstance:  conn,
+			NotificationService: notificationService,
+			EmittedAt:           time.Now(),
+		}
+
 		// launching a go routine for handling each connection
 		wg.Add(1)
-		go handleConnections(conn, wg)
+		go handleConnections(conn, phonenumber, notificationService, connectionEventChannel, wg)
 	}
 
 	log.Println("[TCP SERVER]: Socket server stopped.")
