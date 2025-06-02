@@ -1,7 +1,7 @@
 -- +goose Up
 create table users(
     id uuid not null primary key,
-    email varchar(50) not null unique,
+    phonenumber varchar(12) not null unique,
     username varchar(50) not null,
     password text not null,
     created_at timestamp not null,

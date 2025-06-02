@@ -13,33 +13,33 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-insert into users(id, email, username, password, created_at, updated_at)
+insert into users(id, phonenumber, username, password, created_at, updated_at)
 values(
     gen_random_uuid(), $1, $2, $3, NOW(), NOW()
 )
-returning id, email, username, created_at, updated_at
+returning id, phonenumber, username, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Email    string
-	Username string
-	Password string
+	Phonenumber string
+	Username    string
+	Password    string
 }
 
 type CreateUserRow struct {
-	ID        uuid.UUID
-	Email     string
-	Username  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Phonenumber string
+	Username    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Username, arg.Password)
+	row := q.db.QueryRowContext(ctx, createUser, arg.Phonenumber, arg.Username, arg.Password)
 	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Phonenumber,
 		&i.Username,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -47,43 +47,43 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-select id, username, password from users where email = $1
-`
-
-type GetUserByEmailRow struct {
-	ID       uuid.UUID
-	Username string
-	Password string
-}
-
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
-	var i GetUserByEmailRow
-	err := row.Scan(&i.ID, &i.Username, &i.Password)
-	return i, err
-}
-
 const getUserById = `-- name: GetUserById :one
-select email, username, created_at, updated_at from users where id = $1
+select phonenumber, username, created_at, updated_at from users where id = $1
 `
 
 type GetUserByIdRow struct {
-	Email     string
-	Username  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Phonenumber string
+	Username    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserById, id)
 	var i GetUserByIdRow
 	err := row.Scan(
-		&i.Email,
+		&i.Phonenumber,
 		&i.Username,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getUserByPhonenumber = `-- name: GetUserByPhonenumber :one
+select id, username, password from users where phonenumber = $1
+`
+
+type GetUserByPhonenumberRow struct {
+	ID       uuid.UUID
+	Username string
+	Password string
+}
+
+func (q *Queries) GetUserByPhonenumber(ctx context.Context, phonenumber string) (GetUserByPhonenumberRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByPhonenumber, phonenumber)
+	var i GetUserByPhonenumberRow
+	err := row.Scan(&i.ID, &i.Username, &i.Password)
 	return i, err
 }
 
@@ -93,20 +93,6 @@ delete from users where id = $1
 
 func (q *Queries) RemoveUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, removeUser, id)
-	return err
-}
-
-const updateEmail = `-- name: UpdateEmail :exec
-update users set email = $1 where id = $2
-`
-
-type UpdateEmailParams struct {
-	Email string
-	ID    uuid.UUID
-}
-
-func (q *Queries) UpdateEmail(ctx context.Context, arg UpdateEmailParams) error {
-	_, err := q.db.ExecContext(ctx, updateEmail, arg.Email, arg.ID)
 	return err
 }
 
@@ -121,6 +107,20 @@ type UpdatePasswordParams struct {
 
 func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
 	_, err := q.db.ExecContext(ctx, updatePassword, arg.Password, arg.ID)
+	return err
+}
+
+const updatePhonenumber = `-- name: UpdatePhonenumber :exec
+update users set phonenumber = $1 where id = $2
+`
+
+type UpdatePhonenumberParams struct {
+	Phonenumber string
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdatePhonenumber(ctx context.Context, arg UpdatePhonenumberParams) error {
+	_, err := q.db.ExecContext(ctx, updatePhonenumber, arg.Phonenumber, arg.ID)
 	return err
 }
 

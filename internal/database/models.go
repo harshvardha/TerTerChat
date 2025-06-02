@@ -43,12 +43,12 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID        uuid.UUID
-	Email     string
-	Username  string
-	Password  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Phonenumber string
+	Username    string
+	Password    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type UsersGroup struct {
