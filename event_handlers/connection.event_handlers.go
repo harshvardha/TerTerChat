@@ -18,10 +18,12 @@ type ConnectionEvent struct {
 }
 
 const (
-	CONNECTED    = "CONNECTED"
-	DISCONNECTED = "DISCONNECTED"
+	CONNECTED      = "CONNECTED"
+	DISCONNECTED   = "DISCONNECTED"
+	LAST_AVAILABLE = "LAST_AVAILABLE"
 )
 
+// TODO: add a last_available event handler
 func ConnectionEventHandler(event chan ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for connectionEvent := range event {
