@@ -27,11 +27,40 @@ const (
 )
 
 // heartbeat mechanism to check whether the client connection is still alive or not
-func handleConnections(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, wg *sync.WaitGroup) {
+func handleTLSConnections(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer connection.Close()
 
 	log.Printf("[CONNECTION ACCEPTED]: %s", connection.RemoteAddr())
+
+	// setting tcp keepalive for duration
+	tlsConnection, ok := connection.(*tls.Conn)
+	if !ok {
+		log.Fatalf("[TCP SERVER]: not a tls connection")
+	}
+
+	// checking for handshake mechanism
+	if err := tlsConnection.Handshake(); err != nil {
+		log.Fatalf("[TCP SERVER]: unable to perform tls handshake: %v", err)
+	}
+
+	// accessing underlying raw tcp connection for setting up keepalive duration
+	underlyingConnection := tlsConnection.NetConn()
+	tcpConnection, ok := underlyingConnection.(*net.TCPConn)
+	if !ok {
+		log.Fatalf("[TCP SERVER]: underlying connection is not tcp")
+	}
+
+	// configuring tcp keepalive duration
+	if err := tcpConnection.SetKeepAliveConfig(net.KeepAliveConfig{
+		Enable:   true,
+		Idle:     60 * time.Second,
+		Interval: 10 * time.Second,
+		Count:    5,
+	},
+	); err != nil {
+		log.Fatalf("[TCP SERVER]: unable to set keepalive config for tcp connection: %v", err)
+	}
 
 	// creating channels for communication between readFromConnection and writeToConnection
 	writer := make(chan []byte, 10)
@@ -65,6 +94,7 @@ func readFromConnection(connection net.Conn, phonenumber string, notificationSer
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Printf("[CONNECTION READER FOR %s]: connection timedout. connection dead", connection.RemoteAddr())
+				// emit LastAvailable event to connection event handler
 			} else if err == io.EOF {
 				log.Printf("[CONNECTION READER FOR %s]: client connection closed.", connection.RemoteAddr())
 			} else {
