@@ -21,5 +21,8 @@ select id, username, password from users where phonenumber = $1;
 -- name: GetUserById :one
 select phonenumber, username, created_at, updated_at from users where id = $1;
 
+-- name: DoesUserExist :one
+select 1 from users where phonenumber = $1;
+
 -- name: RemoveUser :exec
 delete from users where id = $1;

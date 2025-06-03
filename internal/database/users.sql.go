@@ -47,6 +47,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const doesUserExist = `-- name: DoesUserExist :one
+select 1 from users where phonenumber = $1
+`
+
+func (q *Queries) DoesUserExist(ctx context.Context, phonenumber string) (int32, error) {
+	row := q.db.QueryRowContext(ctx, doesUserExist, phonenumber)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getUserById = `-- name: GetUserById :one
 select phonenumber, username, created_at, updated_at from users where id = $1
 `
