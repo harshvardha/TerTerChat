@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 
 	"github.com/twilio/twilio-go"
 	openapi "github.com/twilio/twilio-go/rest/verify/v2"
@@ -27,39 +28,40 @@ func NewOTPService(twilioAccountSid string, verifyServiceSid string, twilioAuthT
 	}
 }
 
-func (tc *TwilioConfig) SendOTP(phonenumber string) (bool, error) {
+func (tc *TwilioConfig) SendOTP(phonenumber string) error {
 	params := &openapi.CreateVerificationParams{}
 	params.SetTo(phonenumber)
 	params.SetChannel("sms")
 	params.SetCustomFriendlyName(tc.customFriendlyName)
 	params.SetCustomMessage(tc.customMessage)
 
-	_, err := tc.client.VerifyV2.CreateVerification(tc.verifyServiceSid, params)
+	response, err := tc.client.VerifyV2.CreateVerification(tc.verifyServiceSid, params)
+	log.Println(response)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
-func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) (bool, error) {
+func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) error {
 	params := &openapi.CreateVerificationCheckParams{}
 	params.SetTo(phonenumber)
 	params.SetCode(code)
 
 	response, err := tc.client.VerifyV2.CreateVerificationCheck(tc.verifyServiceSid, params)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	switch *response.Status {
 	case "approved":
-		return true, nil
+		return nil
 	case "failed":
-		return false, errors.New("incorrect otp")
+		return errors.New("incorrect otp")
 	case "expired":
-		return false, errors.New("otp expired")
+		return errors.New("otp expired")
 	}
 
-	return false, nil
+	return nil
 }
