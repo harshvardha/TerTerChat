@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/go-playground/validator/v10"
 	eventhandlers "github.com/harshvardha/TerTerChat/event_handlers"
 	"github.com/harshvardha/TerTerChat/internal/cache"
 	"github.com/harshvardha/TerTerChat/internal/database"
@@ -12,7 +13,12 @@ type ApiConfig struct {
 	JwtSecret                       string
 	TwilioConfig                    *services.TwilioConfig
 	NotificationService             *services.Notification
+	DataValidator                   *validator.Validate
 	MessageEventEmitterChannel      chan eventhandlers.MessageEvent
 	GroupActionsEventEmitterChannel chan eventhandlers.GroupEvent
 	MessageCache                    *cache.DynamicShardedCache[[]database.Message]
+}
+
+type EmptyResponse struct {
+	AccessToken string
 }
