@@ -8,12 +8,14 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/harshvardha/TerTerChat/controllers"
 	eventhandlers "github.com/harshvardha/TerTerChat/event_handlers"
 	"github.com/harshvardha/TerTerChat/internal/cache"
 	"github.com/harshvardha/TerTerChat/internal/database"
 	"github.com/harshvardha/TerTerChat/internal/services"
 	"github.com/harshvardha/TerTerChat/servers"
+	"github.com/harshvardha/TerTerChat/utility"
 	"github.com/joho/godotenv"
 )
 
@@ -90,6 +92,13 @@ func main() {
 	}
 	db := database.New(dbConnection)
 
+	// registering custom validators
+	dataValidator := validator.New()
+	dataValidator.RegisterValidation("password", utility.PasswordValidator)
+	dataValidator.RegisterValidation("username", utility.UsernameAndGroupnameValidator)
+	dataValidator.RegisterValidation("groupname", utility.UsernameAndGroupnameValidator)
+	dataValidator.RegisterValidation("phonenumber", utility.PhonenumberValidator)
+
 	// communication channel for message event handler and rest api server
 	messageEventEmitterChannel := make(chan eventhandlers.MessageEvent)
 
@@ -108,6 +117,7 @@ func main() {
 		JwtSecret:                       jwtSecret,
 		TwilioConfig:                    twilioConfig,
 		NotificationService:             notificationService,
+		DataValidator:                   dataValidator,
 		MessageEventEmitterChannel:      messageEventEmitterChannel,
 		GroupActionsEventEmitterChannel: groupActionsEventEmitterChannel,
 		MessageCache:                    &cache.DynamicShardedCache[[]database.Message]{},
