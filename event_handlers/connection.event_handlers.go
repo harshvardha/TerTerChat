@@ -27,6 +27,7 @@ const (
 // TODO: add a last_available event handler
 func ConnectionEventHandler(event chan ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
+	log.Println("[EVENT_HANDLER]: connection event handler started")
 	for connectionEvent := range event {
 		switch connectionEvent.Name {
 		case CONNECTED:

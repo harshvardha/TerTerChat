@@ -14,7 +14,7 @@ import (
 
 func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-chan os.Signal, wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Printf("[REST SERVER]: Starting server, [TIME]: %s", time.Now().Format(time.RFC1123))
+	log.Printf("[REST SERVER]: Starting server")
 
 	// define all the handlers here
 	router := http.NewServeMux()
@@ -36,7 +36,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	// launching ListenAndServe in a separate go-routine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err == http.ErrServerClosed {
-			log.Fatalf("[REST SERVER]: server failed %v, [TIME]: %s", err, time.Now().Format(time.RFC1123))
+			log.Fatalf("[REST SERVER]: server failed %v", err)
 			serverErr <- err
 		}
 	}()
@@ -45,7 +45,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	select {
 	case sig := <-quit:
 		// recieved a signal(for e.g., ctrl+c or SIGTERM)
-		log.Printf("[REST SERVER]: signal recieved %s. shutting down serve, [TIME]: %s", sig, time.Now().Format(time.RFC1123))
+		log.Printf("[REST SERVER]: signal recieved %s. shutting down server", sig)
 
 		// initiating proper http server shutdown
 		// creating a context with a timeout of 30 sec
@@ -54,11 +54,11 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 		defer cancel() // releasing all the resources acquired by the context when it done
 
 		if err := server.Shutdown(context); err != nil {
-			log.Fatalf("[REST SERVER]: server shutdown failed %v, [TIME]: %s", err, time.Now().Format(time.RFC1123))
+			log.Fatalf("[REST SERVER]: server shutdown failed %v", err)
 		}
 
-		log.Printf("[REST SERVER]: server shutdown successfull, [TIME]: %s", time.Now().Format(time.RFC1123))
+		log.Printf("[REST SERVER]: server shutdown successfull")
 	case err := <-serverErr:
-		log.Fatalf("[REST SERVER]: server failed to start or crashed %v, [TIME]: %s", err, time.Now().Format(time.RFC1123))
+		log.Fatalf("[REST SERVER]: server failed to start or crashed %v", err)
 	}
 }

@@ -33,6 +33,7 @@ type action struct {
 
 func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
+	log.Println("[EVENT_HANDLER]: group actions event handler started")
 	for groupEvent := range event {
 		log.Printf("[EVENT]: %s, [TIME]: %s", groupEvent.Name, groupEvent.EmittedAt.Format(time.RFC1123))
 		action, err := json.Marshal(action{

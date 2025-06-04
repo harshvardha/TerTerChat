@@ -17,6 +17,7 @@ import (
 	"github.com/harshvardha/TerTerChat/servers"
 	"github.com/harshvardha/TerTerChat/utility"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -25,55 +26,55 @@ func main() {
 	// loading tcp port env variable
 	tcpPort := os.Getenv("TCP_PORT")
 	if tcpPort == "" {
-		log.Fatal("TCP port not set")
+		log.Fatal("[ENV_VARIABLES]: TCP port not set")
 	}
 
 	// loading rest api port env variable
 	restApiPort := os.Getenv("REST_API_PORT")
 	if restApiPort == "" {
-		log.Fatal("REST api port not set")
+		log.Fatal("[ENV_VARIABLES]: REST api port not set")
 	}
 
 	// loading jwt secret env variable
 	jwtSecret := os.Getenv("ACCESS_TOKEN_SECRET")
 	if jwtSecret == "" {
-		log.Fatal("ACCESS_TOKEN_SECRET not set")
+		log.Fatal("[ENV_VARIABLES]: ACCESS_TOKEN_SECRET not set")
 	}
 
 	// loading database uri
 	databaseURI := os.Getenv("DATABASE_URI")
 	if databaseURI == "" {
-		log.Fatal("DATABASE_URI not set")
+		log.Fatal("[ENV_VARIABLES]: DATABASE_URI not set")
 	}
 
 	// loading twilio account sid variable
 	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
 	if twilioAccountSID == "" {
-		log.Fatal("TWILIO_ACCOUNT_SID not set")
+		log.Fatal("[ENV_VARIABLES]: TWILIO_ACCOUNT_SID not set")
 	}
 
 	// loading twilio auth token variable
 	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
 	if twilioAuthToken == "" {
-		log.Fatal("TWILIO_AUTH_TOKEN not set")
+		log.Fatal("[ENV_VARIABLES]: TWILIO_AUTH_TOKEN not set")
 	}
 
 	// loading twilio verify service sid variable
 	twilioVerifyServiceSID := os.Getenv("VERIFY_SERVICE_SID")
 	if twilioVerifyServiceSID == "" {
-		log.Fatal("VERIFY_SERVICE_SID not set")
+		log.Fatal("[ENV_VARIABLES]: VERIFY_SERVICE_SID not set")
 	}
 
 	// loading custom message variable
-	customMessage := os.Getenv("CUSTOM_MESSAGE")
+	customMessage := os.Getenv("OTP_CUSTOM_MESSAGE")
 	if customMessage == "" {
-		log.Fatal("CUSTOM_MESSAGE not set")
+		log.Fatal("[ENV_VARIABLES]: CUSTOM_MESSAGE not set")
 	}
 
 	// loading custom friendly name variable
 	customFriendlyName := os.Getenv("CUSTOM_FRIENDLY_NAME")
 	if customFriendlyName == "" {
-		log.Fatal("CUSTOM_FRIENDLY_NAME not set")
+		log.Fatal("[ENV_VARIABLES]: CUSTOM_FRIENDLY_NAME not set")
 	}
 
 	// setting twilio config

@@ -31,6 +31,7 @@ const (
 
 func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
+	log.Printf("[EVENT_HANDLER]: message event handler started")
 	for messageEvent := range event {
 		log.Printf("[EVENT]: %s, [TIME]: %s", messageEvent.Name, messageEvent.EmittedAt.Format(time.RFC1123))
 		msg, err := json.Marshal(message{

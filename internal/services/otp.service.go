@@ -17,6 +17,7 @@ type TwilioConfig struct {
 
 func NewOTPService(twilioAccountSid string, verifyServiceSid string, twilioAuthToken string,
 	customMessage string, customFriendlyName string) *TwilioConfig {
+	log.Printf("[OTP_SERVICE]: started otp service")
 	return &TwilioConfig{
 		verifyServiceSid:   verifyServiceSid,
 		customMessage:      customMessage,

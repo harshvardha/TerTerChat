@@ -15,6 +15,7 @@ type Notification struct {
 }
 
 func NewNotificaitonService() *Notification {
+	log.Printf("[NOTIFICATION_SERVICE]: started notification service")
 	return &Notification{
 		connections: make(map[string]net.Conn),
 	}
