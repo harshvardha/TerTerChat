@@ -143,7 +143,7 @@ func main() {
 
 	// starting tcp server
 	wg.Add(1)
-	go servers.StartTCPServer(tcpPort, notificationService, connectionEventEmitterChannel, quit, &wg)
+	go servers.StartTCPServer(tcpPort, notificationService, db, connectionEventEmitterChannel, quit, &wg)
 
 	// starting rest api server
 	wg.Add(1)

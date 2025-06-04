@@ -1,8 +1,12 @@
 package services
 
 import (
+	"context"
+	"log"
 	"net"
 	"sync"
+
+	"github.com/harshvardha/TerTerChat/internal/database"
 )
 
 type Notification struct {
@@ -16,26 +20,31 @@ func NewNotificaitonService() *Notification {
 	}
 }
 
-func (conn *Notification) PushNotification(user_ids []string, message []byte) {
+func (conn *Notification) PushNotification(phonenumbers []string, message []byte) {
 	conn.mutex.RLock()
 	defer conn.mutex.RUnlock()
 
-	for _, id := range user_ids {
-		connection := conn.connections[id]
+	for _, phonenumber := range phonenumbers {
+		connection := conn.connections[phonenumber]
 		connection.Write(message)
 	}
 }
 
-func (conn *Notification) AddUserConnection(userID string, connection net.Conn) {
+func (conn *Notification) AddUserConnection(phonenumber string, connection net.Conn) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	conn.connections[userID] = connection
+	conn.connections[phonenumber] = connection
 }
 
-func (conn *Notification) RemoveUserConnection(userID string) {
+func (conn *Notification) RemoveUserConnection(phonenumber string, db *database.Queries) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	delete(conn.connections, userID)
+	// marking user's last logout time
+	ctx := context.Background()
+	if err := db.SetLastAvailable(ctx, phonenumber); err != nil {
+		log.Printf("[EVENT]: unable to set last available time for disconnected user: %v", err)
+	}
+	delete(conn.connections, phonenumber)
 }

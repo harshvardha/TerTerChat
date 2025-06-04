@@ -12,6 +12,7 @@ import (
 	"time"
 
 	eventhandlers "github.com/harshvardha/TerTerChat/event_handlers"
+	"github.com/harshvardha/TerTerChat/internal/database"
 	"github.com/harshvardha/TerTerChat/internal/services"
 )
 
@@ -27,7 +28,7 @@ const (
 )
 
 // heartbeat mechanism to check whether the client connection is still alive or not
-func handleTLSConnections(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, wg *sync.WaitGroup) {
+func handleTLSConnections(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer connection.Close()
 
@@ -67,10 +68,10 @@ func handleTLSConnections(connection net.Conn, phonenumber string, notificationS
 	stopChan := make(chan struct{}) // this will be used to know whether to stop the heartbeat mechanism for the connection or not
 
 	// reader go-routine
-	go readFromConnection(connection, phonenumber, notificationService, connectionEventChannel, writer, stopChan)
+	go readFromConnection(connection, phonenumber, db, notificationService, connectionEventChannel, writer, stopChan)
 
 	// writer go-routine
-	go writeToConnection(connection, phonenumber, notificationService, connectionEventChannel, writer, stopChan)
+	go writeToConnection(connection, phonenumber, db, notificationService, connectionEventChannel, writer, stopChan)
 
 	// blocking until signal recieved to stop heartbeat mechanism
 	<-stopChan
@@ -78,7 +79,7 @@ func handleTLSConnections(connection net.Conn, phonenumber string, notificationS
 }
 
 // reader go-routine to read pong messages if server sends ping or respond with pong messages if client sends ping
-func readFromConnection(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer chan<- []byte, stopChan chan<- struct{}) {
+func readFromConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer chan<- []byte, stopChan chan<- struct{}) {
 	defer func() {
 		log.Printf("[CONNECTION READER FOR %s]: Exiiting", connection.RemoteAddr())
 		stopChan <- struct{}{} //signal to stop the heartbeat mechanism
@@ -93,8 +94,8 @@ func readFromConnection(connection net.Conn, phonenumber string, notificationSer
 		message, err := reader.ReadBytes('\n')
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Printf("[CONNECTION READER FOR %s]: connection timedout. connection dead", connection.RemoteAddr())
-				// emit LastAvailable event to connection event handler
+				log.Printf("[CONNECTION READER FOR %s]: connection timedout.", connection.RemoteAddr())
+				continue
 			} else if err == io.EOF {
 				log.Printf("[CONNECTION READER FOR %s]: client connection closed.", connection.RemoteAddr())
 			} else {
@@ -107,6 +108,7 @@ func readFromConnection(connection net.Conn, phonenumber string, notificationSer
 				Phonenumber:         phonenumber,
 				ConnectionInstance:  nil,
 				NotificationService: notificationService,
+				DB:                  db,
 				EmittedAt:           time.Now(),
 			}
 
@@ -131,7 +133,7 @@ func readFromConnection(connection net.Conn, phonenumber string, notificationSer
 	}
 }
 
-func writeToConnection(connection net.Conn, phonenumber string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer <-chan []byte, stopChan chan<- struct{}) {
+func writeToConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer <-chan []byte, stopChan chan<- struct{}) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer func() {
 		log.Printf("[CONNECTION WRITER FOR %s]: Exiting.", connection.RemoteAddr())
@@ -155,6 +157,7 @@ func writeToConnection(connection net.Conn, phonenumber string, notificationServ
 					Name:                "DISCONNECTED",
 					Phonenumber:         phonenumber,
 					ConnectionInstance:  nil,
+					DB:                  db,
 					NotificationService: notificationService,
 					EmittedAt:           time.Now(),
 				}
@@ -171,6 +174,7 @@ func writeToConnection(connection net.Conn, phonenumber string, notificationServ
 					Name:                "DISCONNECTED",
 					Phonenumber:         phonenumber,
 					ConnectionInstance:  nil,
+					DB:                  db,
 					NotificationService: notificationService,
 					EmittedAt:           time.Now(),
 				}
@@ -181,7 +185,7 @@ func writeToConnection(connection net.Conn, phonenumber string, notificationServ
 	}
 }
 
-func StartTCPServer(port string, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, quit <-chan os.Signal, wg *sync.WaitGroup) {
+func StartTCPServer(port string, notificationService *services.Notification, db *database.Queries, connectionEventChannel chan eventhandlers.ConnectionEvent, quit <-chan os.Signal, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// loading server certificate and private key
@@ -242,12 +246,13 @@ func StartTCPServer(port string, notificationService *services.Notification, con
 			Phonenumber:         phonenumber,
 			ConnectionInstance:  conn,
 			NotificationService: notificationService,
+			DB:                  nil,
 			EmittedAt:           time.Now(),
 		}
 
 		// launching a go routine for handling each connection
 		wg.Add(1)
-		go handleConnections(conn, phonenumber, notificationService, connectionEventChannel, wg)
+		go handleTLSConnections(conn, phonenumber, db, notificationService, connectionEventChannel, wg)
 	}
 
 	log.Println("[TCP SERVER]: Socket server stopped.")
