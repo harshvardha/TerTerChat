@@ -16,13 +16,16 @@ update users set username = $1 where id = $2
 returning username, updated_at;
 
 -- name: GetUserByPhonenumber :one
-select id, username, password from users where phonenumber = $1;
+select id, username, password, last_available from users where phonenumber = $1;
 
 -- name: GetUserById :one
 select phonenumber, username, created_at, updated_at from users where id = $1;
 
 -- name: DoesUserExist :one
 select 1 from users where phonenumber = $1;
+
+-- name: SetLastAvailable :exec
+update users set last_available = NOW() where phonenumber = $1;
 
 -- name: RemoveUser :exec
 delete from users where id = $1;

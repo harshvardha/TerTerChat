@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -82,19 +83,25 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 }
 
 const getUserByPhonenumber = `-- name: GetUserByPhonenumber :one
-select id, username, password from users where phonenumber = $1
+select id, username, password, last_available from users where phonenumber = $1
 `
 
 type GetUserByPhonenumberRow struct {
-	ID       uuid.UUID
-	Username string
-	Password string
+	ID            uuid.UUID
+	Username      string
+	Password      string
+	LastAvailable sql.NullTime
 }
 
 func (q *Queries) GetUserByPhonenumber(ctx context.Context, phonenumber string) (GetUserByPhonenumberRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserByPhonenumber, phonenumber)
 	var i GetUserByPhonenumberRow
-	err := row.Scan(&i.ID, &i.Username, &i.Password)
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Password,
+		&i.LastAvailable,
+	)
 	return i, err
 }
 
@@ -104,6 +111,15 @@ delete from users where id = $1
 
 func (q *Queries) RemoveUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, removeUser, id)
+	return err
+}
+
+const setLastAvailable = `-- name: SetLastAvailable :exec
+update users set last_available = NOW() where phonenumber = $1
+`
+
+func (q *Queries) SetLastAvailable(ctx context.Context, phonenumber string) error {
+	_, err := q.db.ExecContext(ctx, setLastAvailable, phonenumber)
 	return err
 }
 

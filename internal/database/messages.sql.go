@@ -136,6 +136,81 @@ func (q *Queries) GetAllMessages(ctx context.Context, arg GetAllMessagesParams) 
 	return items, nil
 }
 
+const getLatestGroupMessagesByGroupID = `-- name: GetLatestGroupMessagesByGroupID :many
+select groups.name as group_name, messages.description as messages, count(*) as total_new_messages
+from messages join groups on messages.group_id = groups.id where messages.created_at > $1 group by group_name
+order by messages.created_at
+`
+
+type GetLatestGroupMessagesByGroupIDRow struct {
+	GroupName        string
+	Messages         string
+	TotalNewMessages int64
+}
+
+func (q *Queries) GetLatestGroupMessagesByGroupID(ctx context.Context, createdAt time.Time) ([]GetLatestGroupMessagesByGroupIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestGroupMessagesByGroupID, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLatestGroupMessagesByGroupIDRow
+	for rows.Next() {
+		var i GetLatestGroupMessagesByGroupIDRow
+		if err := rows.Scan(&i.GroupName, &i.Messages, &i.TotalNewMessages); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLatestMessagesByRecieverID = `-- name: GetLatestMessagesByRecieverID :many
+select users.username as sender, messages.description as messages, count(*) as total_new_messages
+from messages join users on messages.sender_id = users.id where messages.reciever_id = $1 and
+messages.created_at > $2 group by users.username order by messages.created_at
+`
+
+type GetLatestMessagesByRecieverIDParams struct {
+	RecieverID uuid.NullUUID
+	CreatedAt  time.Time
+}
+
+type GetLatestMessagesByRecieverIDRow struct {
+	Sender           string
+	Messages         string
+	TotalNewMessages int64
+}
+
+func (q *Queries) GetLatestMessagesByRecieverID(ctx context.Context, arg GetLatestMessagesByRecieverIDParams) ([]GetLatestMessagesByRecieverIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestMessagesByRecieverID, arg.RecieverID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLatestMessagesByRecieverIDRow
+	for rows.Next() {
+		var i GetLatestMessagesByRecieverIDRow
+		if err := rows.Scan(&i.Sender, &i.Messages, &i.TotalNewMessages); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeMessage = `-- name: RemoveMessage :exec
 delete from messages where id = $1 and sender_id = $2 and reciever_id = $3 and group_id = $4
 `

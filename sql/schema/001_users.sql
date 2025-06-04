@@ -4,6 +4,7 @@ create table users(
     phonenumber varchar(12) not null unique,
     username varchar(50) not null,
     password text not null,
+    last_available timestamp,
     created_at timestamp not null,
     updated_at timestamp not null
 );
