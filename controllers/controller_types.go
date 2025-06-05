@@ -22,3 +22,7 @@ type ApiConfig struct {
 type EmptyResponse struct {
 	AccessToken string
 }
+
+type phonenumber struct {
+	Phonenumber string `json:"phonenumber"`
+}
