@@ -26,7 +26,7 @@ func PasswordValidator(fl validator.FieldLevel) bool {
 
 func UsernameAndGroupnameValidator(fl validator.FieldLevel) bool {
 	field := fl.Field().String()
-	return regexp.MustCompile(`^[a-zA-Z0-9]_`).MatchString(field)
+	return regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*(?:[ _]+[a-zA-Z0-9_]+)*$`).MatchString(field)
 }
 
 func PhonenumberValidator(fl validator.FieldLevel) bool {
