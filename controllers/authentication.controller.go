@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/harshvardha/TerTerChat/internal/database"
 	"github.com/harshvardha/TerTerChat/utility"
 	"golang.org/x/crypto/bcrypt"
@@ -15,9 +17,6 @@ import (
 
 func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request) {
 	// extracting phonenumber from request body
-	type phonenumber struct {
-		Phonenumber string `json:"phonenumber"`
-	}
 	decoder := json.NewDecoder(r.Body)
 	params := phonenumber{}
 	err := decoder.Decode(&params)
@@ -42,7 +41,7 @@ func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request
 	utility.RespondWithJson(w, http.StatusOK, nil)
 }
 
-func (apiConfig *ApiConfig) RegisterUser(w http.ResponseWriter, r *http.Request) {
+func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Request) {
 	// extracting user information from request body
 	type userInformation struct {
 		Username    string `json:"username"`
@@ -72,18 +71,14 @@ func (apiConfig *ApiConfig) RegisterUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	// checking if the user with the phonenumber already exists
-	userExists, err := apiConfig.DB.DoesUserExist(r.Context(), params.Phonenumber)
-	if err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if userExists == 1 {
+	if _, err = apiConfig.DB.DoesUserExist(r.Context(), params.Phonenumber); err == nil {
 		utility.RespondWithError(w, http.StatusBadRequest, "user already exist")
 		return
 	}
 
 	// validating username
-	if err = apiConfig.DataValidator.Var(params.Username, "required,min=4,max=50,username"); err != nil {
+	err = apiConfig.DataValidator.Var(params.Username, "required,min=4,max=50,username")
+	if err != nil {
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
@@ -112,10 +107,24 @@ func (apiConfig *ApiConfig) RegisterUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	utility.RespondWithJson(w, http.StatusCreated, newUser)
+	type user struct {
+		ID          uuid.UUID `json:"id"`
+		Username    string    `json:"username"`
+		Phonenumber string    `json:"phonenumber"`
+		CreatedAt   string    `json:"created_at"`
+		UpdatedAt   string    `json:"updated_at"`
+	}
+
+	utility.RespondWithJson(w, http.StatusCreated, user{
+		ID:          newUser.ID,
+		Username:    newUser.Username,
+		Phonenumber: newUser.Phonenumber,
+		CreatedAt:   newUser.CreatedAt.Format(time.RFC1123),
+		UpdatedAt:   newUser.UpdatedAt.Format(time.RFC1123),
+	})
 }
 
-func (apiConfig *ApiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
+func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Request) {
 	// extracting user credentials from request body
 	type userCredentials struct {
 		Phonenumber string `json:"phonenumber"`
@@ -177,13 +186,38 @@ func (apiConfig *ApiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utility.RespondWithJson(w, http.StatusOK, EmptyResponse{
-		AccessToken: accessToken,
+	type latestMessages struct {
+		OneToOneMessages []database.GetLatestMessagesByRecieverIDRow   `json:"one_to_messages,omitempty"`
+		GroupMessages    []database.GetLatestGroupMessagesByGroupIDRow `json:"group_messages,omitempty"`
+		AccessToken      string                                        `json:"access_token"`
+	}
+
+	// getting latest messages for one-to-one conversations
+	newMessages := latestMessages{}
+	latestOneToOneMessages, err := apiConfig.DB.GetLatestMessagesByRecieverID(r.Context(), database.GetLatestMessagesByRecieverIDParams{
+		RecieverID: uuid.NullUUID{
+			UUID:  user.ID,
+			Valid: true,
+		},
+		CreatedAt: user.LastAvailable.Time,
 	})
-}
+	if err == nil {
+		newMessages.OneToOneMessages = latestOneToOneMessages
+	} else {
+		log.Printf("[LOGIN]: no new one-to-one messages found")
+	}
 
-func (apiConfig *ApiConfig) ResendOTP(w http.ResponseWriter, r *http.Request) {
+	// getting latest group messages
+	latestGroupMessages, err := apiConfig.DB.GetLatestGroupMessagesByGroupID(r.Context(), user.LastAvailable.Time)
+	if err == nil {
+		newMessages.GroupMessages = latestGroupMessages
+	} else {
+		log.Printf("[LOGIN]: no new group messages found")
+	}
 
+	newMessages.AccessToken = accessToken
+
+	utility.RespondWithJson(w, http.StatusOK, newMessages)
 }
 
 func MakeJWT(userID string, jwtSecret string, expiresAfter time.Duration) (string, error) {
@@ -199,7 +233,7 @@ func MakeJWT(userID string, jwtSecret string, expiresAfter time.Duration) (strin
 	}
 
 	// generating access token
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodES512, tokenClaims)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS512, tokenClaims)
 
 	// signing access token
 	signedAccessToken, err := accessToken.SignedString(signingKey)
