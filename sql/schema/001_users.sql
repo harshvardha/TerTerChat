@@ -1,7 +1,7 @@
 -- +goose Up
 create table users(
     id uuid not null primary key,
-    phonenumber varchar(12) not null unique,
+    phonenumber varchar(13) not null unique,
     username varchar(50) not null,
     password text not null,
     last_available timestamp,
