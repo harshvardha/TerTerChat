@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/harshvardha/TerTerChat/internal/database"
 )
@@ -43,7 +44,8 @@ func (conn *Notification) RemoveUserConnection(phonenumber string, db *database.
 	defer conn.mutex.Unlock()
 
 	// marking user's last logout time
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 	if err := db.SetLastAvailable(ctx, phonenumber); err != nil {
 		log.Printf("[EVENT]: unable to set last available time for disconnected user: %v", err)
 	}
