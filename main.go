@@ -65,16 +65,10 @@ func main() {
 		log.Fatal("[ENV_VARIABLES]: VERIFY_SERVICE_SID not set")
 	}
 
-	// loading custom message variable
-	customMessage := os.Getenv("OTP_CUSTOM_MESSAGE")
-	if customMessage == "" {
-		log.Fatal("[ENV_VARIABLES]: CUSTOM_MESSAGE not set")
-	}
-
-	// loading custom friendly name variable
-	customFriendlyName := os.Getenv("CUSTOM_FRIENDLY_NAME")
-	if customFriendlyName == "" {
-		log.Fatal("[ENV_VARIABLES]: CUSTOM_FRIENDLY_NAME not set")
+	// loading otp channel variable
+	otpChannel := os.Getenv("CHANNEL")
+	if otpChannel == "" {
+		log.Fatal("[ENV_VARIABLES]: CHANNEL not set")
 	}
 
 	// setting twilio config
@@ -82,8 +76,7 @@ func main() {
 		twilioAccountSID,
 		twilioVerifyServiceSID,
 		twilioAuthToken,
-		customMessage,
-		customFriendlyName,
+		otpChannel,
 	)
 
 	// creating database connection
@@ -153,5 +146,9 @@ func main() {
 	// waiting for servers to shutdown
 	<-quit
 	log.Println("Shutting down servers...")
+	close(messageEventEmitterChannel)
+	close(groupActionsEventEmitterChannel)
+	close(connectionEventEmitterChannel)
+	close(quit)
 	wg.Wait()
 }
