@@ -22,6 +22,11 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 		utility.RespondWithJson(w, http.StatusOK, "OK")
 	})
 
+	// api endpoints for authentication
+	router.HandleFunc("POST /api/v1/auth/otp/send", apiConfig.HandleSendOTP)
+	router.HandleFunc("POST /api/v1/auth/user/register", apiConfig.HandleRegisterUser)
+	router.HandleFunc("POST /api/v1/auth/user/login", apiConfig.HandleLoginUser)
+
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      router,
@@ -35,7 +40,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 
 	// launching ListenAndServe in a separate go-routine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err == http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[REST SERVER]: server failed %v", err)
 			serverErr <- err
 		}
