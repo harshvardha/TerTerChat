@@ -9,19 +9,16 @@ import (
 )
 
 type TwilioConfig struct {
-	verifyServiceSid   string
-	customMessage      string
-	customFriendlyName string
-	client             *twilio.RestClient
+	verifyServiceSid string
+	channel          string
+	client           *twilio.RestClient
 }
 
-func NewOTPService(twilioAccountSid string, verifyServiceSid string, twilioAuthToken string,
-	customMessage string, customFriendlyName string) *TwilioConfig {
+func NewOTPService(twilioAccountSid, verifyServiceSid, twilioAuthToken, channel string) *TwilioConfig {
 	log.Printf("[OTP_SERVICE]: started otp service")
 	return &TwilioConfig{
-		verifyServiceSid:   verifyServiceSid,
-		customMessage:      customMessage,
-		customFriendlyName: customFriendlyName,
+		verifyServiceSid: verifyServiceSid,
+		channel:          channel,
 		client: twilio.NewRestClientWithParams(twilio.ClientParams{
 			Username: twilioAccountSid,
 			Password: twilioAuthToken,
@@ -30,14 +27,13 @@ func NewOTPService(twilioAccountSid string, verifyServiceSid string, twilioAuthT
 }
 
 func (tc *TwilioConfig) SendOTP(phonenumber string) error {
-	params := &openapi.CreateVerificationParams{}
-	params.SetTo(phonenumber)
-	params.SetChannel("sms")
-	params.SetCustomFriendlyName(tc.customFriendlyName)
-	params.SetCustomMessage(tc.customMessage)
+	params := &openapi.CreateVerificationParams{
+		To:      &phonenumber,
+		Channel: &tc.channel,
+	}
 
 	response, err := tc.client.VerifyV2.CreateVerification(tc.verifyServiceSid, params)
-	log.Println(response)
+	log.Println(response.SendCodeAttempts)
 	if err != nil {
 		return err
 	}
