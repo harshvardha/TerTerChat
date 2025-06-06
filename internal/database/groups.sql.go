@@ -118,6 +118,33 @@ func (q *Queries) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]GetGroup
 	return items, nil
 }
 
+const getGroupMembersPhonenumbers = `-- name: GetGroupMembersPhonenumbers :many
+select users.phonenumber from users_groups join users on users_groups.user_id = users.id where users_groups.group_id = $1
+`
+
+func (q *Queries) GetGroupMembersPhonenumbers(ctx context.Context, groupID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersPhonenumbers, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var phonenumber string
+		if err := rows.Scan(&phonenumber); err != nil {
+			return nil, err
+		}
+		items = append(items, phonenumber)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const makeUserAdmin = `-- name: MakeUserAdmin :exec
 insert into group_admins(user_id, group_id, created_at)
 values($1, $2, NOW())
@@ -144,6 +171,15 @@ type RemoveUserFromAdminParams struct {
 
 func (q *Queries) RemoveUserFromAdmin(ctx context.Context, arg RemoveUserFromAdminParams) error {
 	_, err := q.db.ExecContext(ctx, removeUserFromAdmin, arg.UserID, arg.GroupID)
+	return err
+}
+
+const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
+delete from users_groups where user_id = $1
+`
+
+func (q *Queries) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
 	return err
 }
 

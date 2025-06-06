@@ -21,8 +21,14 @@ values($1, $2, NOW());
 -- name: RemoveUserFromAdmin :exec
 delete from group_admins where user_id = $1 and group_id = $2;
 
+-- name: RemoveUserFromAllGroups :exec
+delete from users_groups where user_id = $1;
+
 -- name: GetGroupMembers :many
 select groups.name, users.username from groups join users_groups on groups.id = users_groups.group_id join users on users.id = users_groups.user_id where groups.id = $1;
+
+-- name: GetGroupMembersPhonenumbers :many
+select users.phonenumber from users_groups join users on users_groups.user_id = users.id where users_groups.group_id = $1;
 
 -- name: GetGroupAdmins :many
 select groups.name, users.username from groups join group_admins on groups.id = group_admins.group_id join users on users.id = group_admins.user_id where groups.id = $1;
