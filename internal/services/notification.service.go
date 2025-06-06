@@ -11,7 +11,7 @@ import (
 )
 
 type Notification struct {
-	connections map[string]net.Conn
+	connections map[string]net.Conn // this will store user_phonenumber -> tls_tcp_connection_object
 	mutex       sync.RWMutex
 }
 
