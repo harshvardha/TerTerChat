@@ -12,7 +12,7 @@ import (
 
 type MessageEvent struct {
 	Name                string
-	UserIDs             []string
+	Phonenumbers        []string
 	Message             database.Message
 	NotificationService *services.Notification
 	EmittedAt           time.Time
@@ -43,8 +43,8 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			return
 		}
 
-		go messageEvent.NotificationService.PushNotification(messageEvent.UserIDs, msg)
+		go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 	}
 
-	log.Printf("[EVENT]: Message event handler for %v stopped because event channel was closed, [TIME]: %s", (<-event).UserIDs, time.Now().Format(time.RFC1123))
+	log.Printf("[EVENT]: Message event handler for %v stopped because event channel was closed", (<-event).Phonenumbers)
 }
