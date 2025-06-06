@@ -15,11 +15,11 @@ import (
 const createMessage = `-- name: CreateMessage :one
 insert into messages(
     id, description, sender_id, reciever_id,
-    group_id, sent, recieved, created_at, updated_at
+    group_id, sent, created_at, updated_at
 )
 values(
     gen_random_uuid(),
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, NOW(), NOW()
 )
 returning id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at
 `
@@ -30,7 +30,6 @@ type CreateMessageParams struct {
 	RecieverID  uuid.NullUUID
 	GroupID     uuid.NullUUID
 	Sent        bool
-	Recieved    bool
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
@@ -40,7 +39,6 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		arg.RecieverID,
 		arg.GroupID,
 		arg.Sent,
-		arg.Recieved,
 	)
 	var i Message
 	err := row.Scan(

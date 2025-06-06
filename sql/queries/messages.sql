@@ -1,11 +1,11 @@
 -- name: CreateMessage :one
 insert into messages(
     id, description, sender_id, reciever_id,
-    group_id, sent, recieved, created_at, updated_at
+    group_id, sent, created_at, updated_at
 )
 values(
     gen_random_uuid(),
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
+    $1, $2, $3, $4, $5, NOW(), NOW()
 )
 returning *;
 
