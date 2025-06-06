@@ -13,10 +13,13 @@ update users set password = $1 where id = $2;
 
 -- name: UpdateUsername :one
 update users set username = $1 where id = $2
-returning username, updated_at;
+returning username;
 
 -- name: GetUserByPhonenumber :one
-select id, username, password, last_available from users where phonenumber = $1;
+select id, username, password, last_available, created_at from users where phonenumber = $1;
+
+-- name: GetUserPhonenumberByID :one
+select phonenumber from users where id = $1;
 
 -- name: GetUserById :one
 select phonenumber, username, created_at, updated_at from users where id = $1;

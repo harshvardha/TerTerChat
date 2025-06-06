@@ -83,7 +83,7 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 }
 
 const getUserByPhonenumber = `-- name: GetUserByPhonenumber :one
-select id, username, password, last_available from users where phonenumber = $1
+select id, username, password, last_available, created_at from users where phonenumber = $1
 `
 
 type GetUserByPhonenumberRow struct {
@@ -91,6 +91,7 @@ type GetUserByPhonenumberRow struct {
 	Username      string
 	Password      string
 	LastAvailable sql.NullTime
+	CreatedAt     time.Time
 }
 
 func (q *Queries) GetUserByPhonenumber(ctx context.Context, phonenumber string) (GetUserByPhonenumberRow, error) {
@@ -101,8 +102,20 @@ func (q *Queries) GetUserByPhonenumber(ctx context.Context, phonenumber string) 
 		&i.Username,
 		&i.Password,
 		&i.LastAvailable,
+		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getUserPhonenumberByID = `-- name: GetUserPhonenumberByID :one
+select phonenumber from users where id = $1
+`
+
+func (q *Queries) GetUserPhonenumberByID(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserPhonenumberByID, id)
+	var phonenumber string
+	err := row.Scan(&phonenumber)
+	return phonenumber, err
 }
 
 const removeUser = `-- name: RemoveUser :exec
@@ -153,7 +166,7 @@ func (q *Queries) UpdatePhonenumber(ctx context.Context, arg UpdatePhonenumberPa
 
 const updateUsername = `-- name: UpdateUsername :one
 update users set username = $1 where id = $2
-returning username, updated_at
+returning username
 `
 
 type UpdateUsernameParams struct {
@@ -161,14 +174,9 @@ type UpdateUsernameParams struct {
 	ID       uuid.UUID
 }
 
-type UpdateUsernameRow struct {
-	Username  string
-	UpdatedAt time.Time
-}
-
-func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (UpdateUsernameRow, error) {
+func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, updateUsername, arg.Username, arg.ID)
-	var i UpdateUsernameRow
-	err := row.Scan(&i.Username, &i.UpdatedAt)
-	return i, err
+	var username string
+	err := row.Scan(&username)
+	return username, err
 }
