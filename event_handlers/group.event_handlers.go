@@ -25,10 +25,9 @@ const (
 )
 
 type action struct {
-	Name      string   `json:"name"`
-	GroupID   string   `json:"groupID"`
-	UserIDs   []string `json:"userIDs"`
-	EmittedAt string   `json:"emittedAt"`
+	Name      string `json:"name"`
+	GroupID   string `json:"groupID"`
+	EmittedAt string `json:"emittedAt"`
 }
 
 func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
@@ -39,7 +38,6 @@ func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 		action, err := json.Marshal(action{
 			Name:      groupEvent.Name,
 			GroupID:   groupEvent.GroupID,
-			UserIDs:   groupEvent.UserIDs,
 			EmittedAt: groupEvent.EmittedAt.Format(time.RFC1123),
 		})
 		if err != nil {
@@ -50,5 +48,5 @@ func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 		go groupEvent.NotificationService.PushNotification(groupEvent.UserIDs, action)
 	}
 
-	log.Printf("[EVENT]: GroupActionsEventHandler stopped for %v because event channel was closed, [TIME]: %s", (<-event).UserIDs, time.Now().Format(time.RFC1123))
+	log.Printf("[EVENT]: GroupActionsEventHandler stopped for %v because event channel was closed", (<-event).UserIDs)
 }
