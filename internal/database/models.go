@@ -24,6 +24,13 @@ type GroupAdmin struct {
 	CreatedAt time.Time
 }
 
+type GroupmessageGroupmember struct {
+	MessageID     uuid.UUID
+	GroupMemberID uuid.UUID
+	GroupID       uuid.UUID
+	CreatedAt     time.Time
+}
+
 type Message struct {
 	ID          uuid.UUID
 	Description string
