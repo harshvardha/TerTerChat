@@ -145,6 +145,22 @@ func (q *Queries) GetGroupMembersPhonenumbers(ctx context.Context, groupID uuid.
 	return items, nil
 }
 
+const isUserAdmin = `-- name: IsUserAdmin :one
+select 1 from group_admins where user_id = $1 and group_id = $2
+`
+
+type IsUserAdminParams struct {
+	UserID  uuid.UUID
+	GroupID uuid.UUID
+}
+
+func (q *Queries) IsUserAdmin(ctx context.Context, arg IsUserAdminParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, isUserAdmin, arg.UserID, arg.GroupID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const makeUserAdmin = `-- name: MakeUserAdmin :exec
 insert into group_admins(user_id, group_id, created_at)
 values($1, $2, NOW())
@@ -171,15 +187,6 @@ type RemoveUserFromAdminParams struct {
 
 func (q *Queries) RemoveUserFromAdmin(ctx context.Context, arg RemoveUserFromAdminParams) error {
 	_, err := q.db.ExecContext(ctx, removeUserFromAdmin, arg.UserID, arg.GroupID)
-	return err
-}
-
-const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
-delete from users_groups where user_id = $1
-`
-
-func (q *Queries) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
 	return err
 }
 
