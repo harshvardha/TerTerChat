@@ -6,13 +6,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/harshvardha/TerTerChat/internal/services"
 )
 
+type Group struct {
+	ID          uuid.UUID
+	Username    string
+	Phonenumber string
+}
+
 type GroupEvent struct {
 	Name                string
-	GroupID             string
-	UserIDs             []string
+	Group               Group
+	Phonenumbers        []string
 	NotificationService *services.Notification
 	EmittedAt           time.Time
 }
@@ -26,27 +33,27 @@ const (
 
 type action struct {
 	Name      string `json:"name"`
-	GroupID   string `json:"groupID"`
+	Group     Group  `json:"groupID"`
 	EmittedAt string `json:"emittedAt"`
 }
 
 func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Println("[EVENT_HANDLER]: group actions event handler started")
+	log.Println("[GROUP_EVENT_HANDLER]: event handler started")
 	for groupEvent := range event {
-		log.Printf("[EVENT]: %s, [TIME]: %s", groupEvent.Name, groupEvent.EmittedAt.Format(time.RFC1123))
+		log.Printf("[GROUP_EVENT_HANDLER]: %s event", groupEvent.Name)
 		action, err := json.Marshal(action{
 			Name:      groupEvent.Name,
-			GroupID:   groupEvent.GroupID,
+			Group:     groupEvent.Group,
 			EmittedAt: groupEvent.EmittedAt.Format(time.RFC1123),
 		})
 		if err != nil {
-			log.Printf("[EVENT]: Unable to marshal group event action %v", err)
+			log.Printf("[GROUP_EVENT_HANDLER]: Unable to marshal group event action %v", err)
 			return
 		}
 
-		go groupEvent.NotificationService.PushNotification(groupEvent.UserIDs, action)
+		go groupEvent.NotificationService.PushNotification(groupEvent.Phonenumbers, action)
 	}
 
-	log.Printf("[EVENT]: GroupActionsEventHandler stopped for %v because event channel was closed", (<-event).UserIDs)
+	log.Printf("[GROUP_EVENT_HANDLER]: stopped for %v because event channel was closed", (<-event).Phonenumbers)
 }
