@@ -73,9 +73,9 @@ type MessageEvent struct {
 
 func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Printf("[EVENT_HANDLER]: message event handler started")
+	log.Printf("[MESSAGE_EVENT_HANDLER]: message event handler started")
 	for messageEvent := range event {
-		log.Printf("[EVENT]: %s, [TIME]: %s", messageEvent.Name, messageEvent.EmittedAt.Format(time.RFC1123))
+		log.Printf("[MESSAGE_EVENT_HANDLER]: %s", messageEvent.Name)
 		switch messageEvent.Name {
 		case NEW_MESSAGE:
 			msg, err := json.Marshal(newOrEditMessage{
@@ -146,5 +146,5 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 
 	}
 
-	log.Printf("[EVENT]: Message event handler for %v stopped because event channel was closed", (<-event).Phonenumbers)
+	log.Printf("[MESSAGE_EVENT_HANDLER]: Message event handler for %v stopped because event channel was closed", (<-event).Phonenumbers)
 }
