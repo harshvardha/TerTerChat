@@ -114,7 +114,7 @@ func main() {
 		DataValidator:                   dataValidator,
 		MessageEventEmitterChannel:      messageEventEmitterChannel,
 		GroupActionsEventEmitterChannel: groupActionsEventEmitterChannel,
-		MessageCache:                    &cache.DynamicShardedCache[[]database.Message]{},
+		MessageCache:                    cache.NewDynamicShardedCache(4, 16),
 	}
 
 	var wg sync.WaitGroup

@@ -16,7 +16,7 @@ type ApiConfig struct {
 	DataValidator                   *validator.Validate
 	MessageEventEmitterChannel      chan eventhandlers.MessageEvent
 	GroupActionsEventEmitterChannel chan eventhandlers.GroupEvent
-	MessageCache                    *cache.DynamicShardedCache[[]database.Message]
+	MessageCache                    *cache.DynamicShardedCache
 }
 
 type EmptyResponse struct {
