@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/harshvardha/TerTerChat/internal/database"
 )
 
@@ -141,7 +142,7 @@ func (dsc *DynamicShardedCache) getShard(key string) *cacheShard {
 	return dsc.shards[shardIndex]
 }
 
-func (dsc *DynamicShardedCache) Get(key string) (any, bool) {
+func (dsc *DynamicShardedCache) Get(key string, createdAt time.Time) []database.Message {
 	// attaining read lock on cache
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
@@ -157,17 +158,22 @@ func (dsc *DynamicShardedCache) Get(key string) (any, bool) {
 	shard.mutex.RLock()
 	defer shard.mutex.RUnlock()
 
+	// if the createdAt time of latest message is <= createdAt argument then return messages
 	items, ok := shard.items[key]
 	if !ok {
 		atomic.AddUint64(&dsc.metrics.misses, 1)
-		return nil, false
+		return nil
 	}
 
-	atomic.AddUint64(&dsc.metrics.hits, 1)
-	return items, true
+	if items[len(items)-1].CreatedAt.Before(createdAt) || items[len(items)-1].CreatedAt.Equal(createdAt) {
+		atomic.AddUint64(&dsc.metrics.hits, 1)
+		return items
+	}
+
+	return nil
 }
 
-func (dsc *DynamicShardedCache) Remove(key string) bool {
+func (dsc *DynamicShardedCache) Remove(key string) {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -176,13 +182,66 @@ func (dsc *DynamicShardedCache) Remove(key string) bool {
 	defer shard.mutex.Unlock()
 
 	_, ok := shard.items[key]
-	if !ok {
-		return false
+	if ok {
+		delete(shard.items, key)
+		dsc.metrics.evictions++
 	}
+}
 
-	delete(shard.items, key)
-	dsc.metrics.evictions++
-	return true
+func (dsc *DynamicShardedCache) RemoveMessage(key string, messageID uuid.UUID) {
+	dsc.resizeMutex.RLock()
+	defer dsc.resizeMutex.RUnlock()
+
+	shard := dsc.getShard(key)
+	shard.mutex.Lock()
+	defer shard.mutex.Unlock()
+
+	messages := shard.items[key]
+	for index, message := range messages {
+		if message.ID == messageID {
+			newMessagesSlice := make([]database.Message, 10)
+			// if index == 0 then just copy all the elements other than the first one
+			// if index == len(messages) - 1 then copy all the elements other than last one
+			// if index > 0 && index < len(messages) - 1 then copy elements before index and after index
+			// after the required operation update the shard map key with new message slice
+			if index == 0 {
+				newMessagesSlice = append(newMessagesSlice, messages[1:]...)
+			} else if index == len(messages)-1 {
+				newMessagesSlice = append(newMessagesSlice, messages[0:index+1]...)
+			} else {
+				newMessagesSlice = append(newMessagesSlice, messages[0:index+1]...)
+				newMessagesSlice = append(newMessagesSlice, messages[index+1:]...)
+			}
+			shard.items[key] = newMessagesSlice
+			break
+		}
+	}
+}
+
+func (dsc *DynamicShardedCache) Update(key string, messageID uuid.UUID, description string, received bool, updatedAt time.Time) {
+	dsc.resizeMutex.RLock()
+	defer dsc.resizeMutex.RUnlock()
+
+	shard := dsc.getShard(key)
+	shard.mutex.Lock()
+	defer shard.mutex.Unlock()
+
+	// updating the existing message
+	messages := shard.items[key]
+	for _, message := range messages {
+		if message.ID == messageID {
+			if len(description) > 0 && message.Description != description {
+				message.Description = description
+			}
+			if !message.Recieved && received {
+				message.Recieved = true
+			}
+			if updatedAt.After(message.UpdatedAt) {
+				message.UpdatedAt = updatedAt
+			}
+			break
+		}
+	}
 }
 
 func (dsc *DynamicShardedCache) Set(key string, value database.Message) {
