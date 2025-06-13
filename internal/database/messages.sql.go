@@ -231,8 +231,9 @@ func (q *Queries) MarkGroupMessageRead(ctx context.Context, arg MarkGroupMessage
 	return err
 }
 
-const markMessageReceived = `-- name: MarkMessageReceived :exec
+const markMessageReceived = `-- name: MarkMessageReceived :one
 update messages set received = true where id = $1 and reciever_id = $2 and sender_id = $3
+returning updated_at
 `
 
 type MarkMessageReceivedParams struct {
@@ -241,9 +242,11 @@ type MarkMessageReceivedParams struct {
 	SenderID   uuid.UUID
 }
 
-func (q *Queries) MarkMessageReceived(ctx context.Context, arg MarkMessageReceivedParams) error {
-	_, err := q.db.ExecContext(ctx, markMessageReceived, arg.ID, arg.RecieverID, arg.SenderID)
-	return err
+func (q *Queries) MarkMessageReceived(ctx context.Context, arg MarkMessageReceivedParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, markMessageReceived, arg.ID, arg.RecieverID, arg.SenderID)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }
 
 const removeMessage = `-- name: RemoveMessage :one

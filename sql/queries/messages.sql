@@ -33,8 +33,9 @@ select groups.name as group_name, messages.description as messages, count(*) as 
 from messages join groups on messages.group_id = groups.id where messages.created_at > $1 group by group_name
 order by messages.created_at;
 
--- name: MarkMessageReceived :exec
-update messages set received = true where id = $1 and reciever_id = $2 and sender_id = $3;
+-- name: MarkMessageReceived :one
+update messages set received = true where id = $1 and reciever_id = $2 and sender_id = $3
+returning updated_at;
 
 -- name: MarkGroupMessageRead :exec
 insert into groupmessage_groupmembers(message_id, group_member_id, group_id, created_at)
