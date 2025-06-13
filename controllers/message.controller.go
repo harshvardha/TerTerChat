@@ -89,6 +89,13 @@ func (apiConfig *ApiConfig) CreateNewMessage(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// adding new message to cache
+	if len(params.GroupID) > 0 {
+		apiConfig.MessageCache.Set(params.GroupID, newMessage)
+	} else {
+		apiConfig.MessageCache.Set(userID.String()+params.ReceiverID, newMessage)
+	}
+
 	// emitting new message event
 	messageEvent := eventhandlers.MessageEvent{}
 
@@ -200,6 +207,13 @@ func (apiConfig *ApiConfig) UpdateMessage(w http.ResponseWriter, r *http.Request
 		log.Printf("[/api/v1/message/update]: error updating message: %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// updating message cache
+	if params.GroupID != uuid.Nil {
+		apiConfig.MessageCache.Update(params.GroupID.String(), params.ID, updatedMessage.Description, updatedMessage.Recieved, updatedMessage.UpdatedAt)
+	} else {
+		apiConfig.MessageCache.Update(userID.String()+params.ReceiverID.String(), params.ID, updatedMessage.Description, updatedMessage.Recieved, updatedMessage.UpdatedAt)
 	}
 
 	// creating message event
@@ -314,6 +328,13 @@ func (apiConfig *ApiConfig) DeleteMessage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// removing message from cache
+	if params.GroupID != uuid.Nil {
+		apiConfig.MessageCache.RemoveMessage(params.GroupID.String(), params.ID)
+	} else {
+		apiConfig.MessageCache.RemoveMessage(userID.String()+params.ReceiverID.String(), params.ID)
+	}
+
 	// creating delete_message event
 	messageEvent := eventhandlers.MessageEvent{}
 	messageEvent.Name = eventhandlers.DELETE_MESSAGE
@@ -397,8 +418,19 @@ func (apiConfig *ApiConfig) GetConversation(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// fetching only 10 messages at one hit
-	messages, err := apiConfig.DB.GetAllMessages(r.Context(), database.GetAllMessagesParams{
+	// first checking if the messages are present in cache
+	// if messages are not present in cache then hitting database
+	// fetching group messages with limit 10 sorted in ascending order by created_at
+	var messages []database.Message
+	messages = apiConfig.MessageCache.Get(userID.String()+params.ReceiverID.String(), params.CreatedAt)
+	if messages != nil {
+		utility.RespondWithJson(w, http.StatusOK, response{
+			Messages:    messages,
+			AccessToken: newAccessToken,
+		})
+	}
+
+	messages, err = apiConfig.DB.GetAllMessages(r.Context(), database.GetAllMessagesParams{
 		SenderID: userID,
 		RecieverID: uuid.NullUUID{
 			UUID:  params.ReceiverID,
@@ -452,8 +484,19 @@ func (apiConfig *ApiConfig) GetAllGroupMessages(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// first checking if the messages are present in cache
+	// if messages are not present in cache then hitting database
 	// fetching group messages with limit 10 sorted in ascending order by created_at
-	messages, err := apiConfig.DB.GetAllGroupMessages(r.Context(), database.GetAllGroupMessagesParams{
+	var messages []database.Message
+	messages = apiConfig.MessageCache.Get(params.GroupID.String(), params.CreatedAt)
+	if messages != nil {
+		utility.RespondWithJson(w, http.StatusOK, response{
+			Messages:    messages,
+			AccessToken: newAccessToken,
+		})
+	}
+
+	messages, err = apiConfig.DB.GetAllGroupMessages(r.Context(), database.GetAllGroupMessagesParams{
 		GroupID: uuid.NullUUID{
 			UUID:  params.GroupID,
 			Valid: true,
@@ -489,18 +532,22 @@ func (apiConfig *ApiConfig) MarkMessageReceived(w http.ResponseWriter, r *http.R
 	}
 
 	// marking the message as received
-	if err = apiConfig.DB.MarkMessageReceived(r.Context(), database.MarkMessageReceivedParams{
+	updatedAt, err := apiConfig.DB.MarkMessageReceived(r.Context(), database.MarkMessageReceivedParams{
 		ID: params.MessageID,
 		RecieverID: uuid.NullUUID{
 			UUID:  userID,
 			Valid: true,
 		},
 		SenderID: params.SenderID,
-	}); err != nil {
+	})
+	if err != nil {
 		log.Printf("[/api/v1/message/received]: error marking message received: %v", err)
 		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// updating cache
+	apiConfig.MessageCache.Update(params.SenderID.String()+userID.String(), params.MessageID, "", true, updatedAt)
 
 	// creating message event
 	messageEvent := eventhandlers.MessageEvent{}
