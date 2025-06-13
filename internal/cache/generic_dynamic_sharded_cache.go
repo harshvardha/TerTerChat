@@ -5,10 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/harshvardha/TerTerChat/internal/database"
 )
 
-type cacheShard[T any] struct {
-	items map[string]T
+type cacheShard struct {
+	items map[string][]database.Message
 	mutex sync.RWMutex
 }
 
@@ -21,8 +23,8 @@ type cacheMetrics struct {
 	lastCheckTime time.Time
 }
 
-type DynamicShardedCache[T any] struct {
-	shards      []*cacheShard[T]
+type DynamicShardedCache struct {
+	shards      []*cacheShard
 	shardCount  int32
 	minShards   int
 	maxShards   int
@@ -32,7 +34,7 @@ type DynamicShardedCache[T any] struct {
 }
 
 // creating new sharded cache
-func NewDynamicShardedCache[T any](minShards, maxShards int) *DynamicShardedCache[T] {
+func NewDynamicShardedCache(minShards, maxShards int) *DynamicShardedCache {
 	if minShards < 1 {
 		minShards = 1
 	}
@@ -41,8 +43,8 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *DynamicShardedCach
 		maxShards = 4 * minShards
 	}
 
-	cache := &DynamicShardedCache[T]{
-		shards:     make([]*cacheShard[T], minShards),
+	cache := &DynamicShardedCache{
+		shards:     make([]*cacheShard, minShards),
 		shardCount: int32(minShards),
 		minShards:  minShards,
 		maxShards:  maxShards,
@@ -51,8 +53,8 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *DynamicShardedCach
 	}
 
 	for i := range minShards {
-		cache.shards[i] = &cacheShard[T]{
-			items: make(map[string]T),
+		cache.shards[i] = &cacheShard{
+			items: make(map[string][]database.Message),
 		}
 	}
 
@@ -60,7 +62,7 @@ func NewDynamicShardedCache[T any](minShards, maxShards int) *DynamicShardedCach
 	return cache
 }
 
-func (dsc *DynamicShardedCache[T]) monitorAndAdjust() {
+func (dsc *DynamicShardedCache) monitorAndAdjust() {
 	// ticker will be used to monitor the cache to decide whether scaling is required or not
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
@@ -73,7 +75,7 @@ func (dsc *DynamicShardedCache[T]) monitorAndAdjust() {
 	}
 }
 
-func (dsc *DynamicShardedCache[T]) checkAndResize() {
+func (dsc *DynamicShardedCache) checkAndResize() {
 	currentShardCount := atomic.LoadInt32(&dsc.shardCount)
 
 	// calculating load factor(based on hits and misses)
@@ -92,7 +94,7 @@ func (dsc *DynamicShardedCache[T]) checkAndResize() {
 	}
 }
 
-func (dsc *DynamicShardedCache[T]) resize(newShardCount int) {
+func (dsc *DynamicShardedCache) resize(newShardCount int) {
 	dsc.resizeMutex.Lock()
 	defer dsc.resizeMutex.Unlock()
 
@@ -102,10 +104,10 @@ func (dsc *DynamicShardedCache[T]) resize(newShardCount int) {
 	}
 
 	// creating a new shards array
-	newShards := make([]*cacheShard[T], newShardCount)
+	newShards := make([]*cacheShard, newShardCount)
 	for i := range newShardCount {
-		newShards[i] = &cacheShard[T]{
-			items: make(map[string]T),
+		newShards[i] = &cacheShard{
+			items: make(map[string][]database.Message),
 		}
 	}
 
@@ -126,7 +128,7 @@ func (dsc *DynamicShardedCache[T]) resize(newShardCount int) {
 	dsc.metrics.resizeEvents++
 }
 
-func (dsc *DynamicShardedCache[T]) hashKey(key string, shardCount int) int {
+func (dsc *DynamicShardedCache) hashKey(key string, shardCount int) int {
 	// 32-bit fnv 1-a hashing algorithm is used beacause it is light on cpu
 	// because it performs only two simple operations: multiplication and XOR
 	hasher := fnv.New32a()
@@ -134,18 +136,26 @@ func (dsc *DynamicShardedCache[T]) hashKey(key string, shardCount int) int {
 	return int(hasher.Sum32()) % shardCount
 }
 
-func (dsc *DynamicShardedCache[T]) getShard(key string) *cacheShard[T] {
+func (dsc *DynamicShardedCache) getShard(key string) *cacheShard {
 	shardIndex := dsc.hashKey(key, int(dsc.shardCount))
 	return dsc.shards[shardIndex]
 }
 
-func (dsc *DynamicShardedCache[T]) Get(key string) (any, bool) {
+func (dsc *DynamicShardedCache) Get(key string) (any, bool) {
+	// attaining read lock on cache
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
+	// checking if user is requesting group messages or one-to-one conversation
+	// for one-to-one conversation len(keys) = 2, fetching the conversation
+	// taking user ids of both involved users and creating a hash for the conversation
+	// using fnv 1-a then dividing this hash with current shard count and using this value
+	// to fetch the target shard and using the raw hash value to access the conversation
+	// for group conversations only group id will be used to store the messages
+
 	shard := dsc.getShard(key)
 	shard.mutex.RLock()
-	defer shard.mutex.RLock()
+	defer shard.mutex.RUnlock()
 
 	items, ok := shard.items[key]
 	if !ok {
@@ -157,7 +167,7 @@ func (dsc *DynamicShardedCache[T]) Get(key string) (any, bool) {
 	return items, true
 }
 
-func (dsc *DynamicShardedCache[T]) Remove(key string) bool {
+func (dsc *DynamicShardedCache) Remove(key string) bool {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -175,7 +185,7 @@ func (dsc *DynamicShardedCache[T]) Remove(key string) bool {
 	return true
 }
 
-func (dsc *DynamicShardedCache[T]) Set(key string, value T) {
+func (dsc *DynamicShardedCache) Set(key string, value database.Message) {
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -183,7 +193,25 @@ func (dsc *DynamicShardedCache[T]) Set(key string, value T) {
 	shard.mutex.Lock()
 	defer shard.mutex.Unlock()
 
-	shard.items[key] = value
+	// checking if the key already exist in cache
+	// if key already exist then pop out the oldest message and insert the new one
+	// if key does not exist then create a new []database.Message and insert into cache with new key
+	messages, ok := shard.items[key]
+	if ok {
+		if len(messages) == 10 {
+			values := make([]database.Message, 10)
+			values = append(values, messages[1:]...)
+			values = append(values, value)
+			shard.items[key] = values
+		} else {
+			messages = append(messages, value)
+			shard.items[key] = messages
+		}
+	} else {
+		values := make([]database.Message, 10)
+		values[0] = value
+		shard.items[key] = values
+	}
 }
 
 func min(a int, b int) int {
