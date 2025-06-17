@@ -228,7 +228,7 @@ func MakeJWT(userID string, jwtSecret string, expiresAfter time.Duration) (strin
 	tokenClaims := jwt.RegisteredClaims{
 		Issuer:    "http://localhost:8080",
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresAfter).UTC()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiresAfter)),
 		Subject:   "user_id:" + userID,
 	}
 
