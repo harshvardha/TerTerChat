@@ -42,7 +42,7 @@ func ValidateJWT(handler authenticatedEndpointHandler, tokenSecret string, db *d
 		}
 
 		jwtClaims := jwt.RegisteredClaims{}
-		token, parseError := jwt.ParseWithClaims(authHeader[1], jwtClaims, func(token *jwt.Token) (any, error) {
+		token, parseError := jwt.ParseWithClaims(authHeader[1], &jwtClaims, func(token *jwt.Token) (any, error) {
 			return []byte(tokenSecret), nil
 		})
 
