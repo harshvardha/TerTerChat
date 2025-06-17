@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/harshvardha/TerTerChat/controllers"
+	"github.com/harshvardha/TerTerChat/middlewares"
 	"github.com/harshvardha/TerTerChat/utility"
 )
 
@@ -27,12 +28,19 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	router.HandleFunc("POST /api/v1/auth/user/register", apiConfig.HandleRegisterUser)
 	router.HandleFunc("POST /api/v1/auth/user/login", apiConfig.HandleLoginUser)
 
+	// api endpoints for users
+	router.HandleFunc("PUT /api/v1/users/update/username", middlewares.ValidateJWT(apiConfig.UpdateUsername, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/users/update/phonenumber", middlewares.ValidateJWT(apiConfig.UpdatePhonenumber, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/users/update/password", middlewares.ValidateJWT(apiConfig.UpdatePassword, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("GET /api/v1/users/info", middlewares.ValidateJWT(apiConfig.GetUserByPhonenumber, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("DELETE /api/v1/users/remove", middlewares.ValidateJWT(apiConfig.RemoveUser, apiConfig.JwtSecret, apiConfig.DB))
+
 	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      router,
-		ReadTimeout:  time.Second * 5,
-		WriteTimeout: time.Second * 10,
-		IdleTimeout:  time.Second * 120,
+		Addr:    ":" + port,
+		Handler: router,
+		// ReadTimeout:  time.Second * 5,
+		// WriteTimeout: time.Second * 10,
+		// IdleTimeout:  time.Second * 120,
 	}
 
 	// creating a server error channel to shutdown server if an unexpected error occurs during ListenAndServer()
