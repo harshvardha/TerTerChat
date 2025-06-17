@@ -82,7 +82,7 @@ func (dsc *DynamicShardedCache) checkAndResize() {
 	// calculating load factor(based on hits and misses)
 	// if loadFactor is more than 0.2(20%) and currentShardCount < maxShards then scale up
 	// if loadFactor is less than 0.2 then and currentShardCount > minShards scale down
-	if dsc.metrics.hits > 0 || dsc.metrics.misses > 0 {
+	if dsc.metrics.misses > 0 {
 		loadFactor := float64((dsc.metrics.misses) / (dsc.metrics.hits + dsc.metrics.misses))
 		dsc.metrics.averageLoad = loadFactor
 		dsc.metrics.lastCheckTime = time.Now()
