@@ -42,6 +42,9 @@ func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 	log.Println("[GROUP_EVENT_HANDLER]: event handler started")
 	for groupEvent := range event {
 		log.Printf("[GROUP_EVENT_HANDLER]: %s event", groupEvent.Name)
+		eventNameByte := []byte(groupEvent.Name)
+		separatorByte := []byte("|")
+		offset := 0
 		action, err := json.Marshal(action{
 			Name:      groupEvent.Name,
 			Group:     groupEvent.Group,
@@ -51,6 +54,16 @@ func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 			log.Printf("[GROUP_EVENT_HANDLER]: Unable to marshal group event action %v", err)
 			return
 		}
+
+		response := make([]byte, len(eventNameByte)+len(action)+1)
+
+		copy(response[offset:], eventNameByte)
+		offset += len(eventNameByte)
+
+		copy(response[offset:], separatorByte)
+		offset++
+
+		copy(response[offset:], action)
 
 		go groupEvent.NotificationService.PushNotification(groupEvent.Phonenumbers, action)
 	}

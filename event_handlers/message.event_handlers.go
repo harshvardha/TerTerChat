@@ -76,6 +76,14 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 	log.Printf("[MESSAGE_EVENT_HANDLER]: message event handler started")
 	for messageEvent := range event {
 		log.Printf("[MESSAGE_EVENT_HANDLER]: %s", messageEvent.Name)
+
+		// event name will be added to final []byte type response
+		// and they will be separated by a '|'(pipe) character
+		// so that interpreting on client side becomes easier
+		eventNameByte := []byte(messageEvent.Name)
+		separator := []byte("|")
+		offset := 0 // offset will be used for sub-indexing the response byte slice when we create the final response
+
 		switch messageEvent.Name {
 		case NEW_MESSAGE:
 			msg, err := json.Marshal(newOrEditMessage{
@@ -91,7 +99,21 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 				continue
 			}
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
+
+			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case EDIT_MESSAGE:
 			msg, err := json.Marshal(newOrEditMessage{
 				ID:          messageEvent.Message.ID,
@@ -105,6 +127,20 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 				continue
 			}
 
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
+
 			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case DELETE_MESSAGE:
 			msg, err := json.Marshal(deleteMessage{
@@ -117,6 +153,20 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 				continue
 			}
 
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
+
 			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case MESSAGE_RECEIVED:
 			msg, err := json.Marshal(markMessageReceived{
@@ -127,6 +177,20 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for message_received: %v", err)
 				continue
 			}
+
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
 
 			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case GROUP_MESSAGE_READ:
@@ -140,6 +204,20 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for group_message_read: %v", err)
 				continue
 			}
+
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
 
 			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		}
