@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -15,18 +16,21 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// endpoint: /api/v1/auth/otp/send
 func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request) {
 	// extracting phonenumber from request body
 	decoder := json.NewDecoder(r.Body)
 	params := phonenumber{}
 	err := decoder.Decode(&params)
 	if err != nil {
+		log.Printf("[/api/v1/auth/otp/send]: error decoding request body %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// validating phonenumber
 	if err = apiConfig.DataValidator.Var(params.Phonenumber, "required,phonenumber"); err != nil {
+		log.Printf("[/api/v1/auth/otp/send]: error validating phonenumber %v", err)
 		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -34,6 +38,7 @@ func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request
 	// sending otp to phonenumber
 	err = apiConfig.TwilioConfig.SendOTP(params.Phonenumber)
 	if err != nil {
+		log.Printf("[/api/v1/auth/otp/send]: error sending otp %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -41,6 +46,7 @@ func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request
 	utility.RespondWithJson(w, http.StatusOK, nil)
 }
 
+// endpoint: /api/v1/auth/register
 func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Request) {
 	// extracting user information from request body
 	type userInformation struct {
@@ -53,25 +59,33 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 	decoder := json.NewDecoder(r.Body)
 	params := userInformation{}
 	err := decoder.Decode(&params)
+	fmt.Println(params.Username)
+	fmt.Println(params.Phonenumber)
+	fmt.Println(params.Password)
+	fmt.Println(params.OTP)
 	if err != nil {
+		log.Printf("[/api/v1/auth/register]: error decoding request body %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// validating phonenumber
 	if err = apiConfig.DataValidator.Var(params.Phonenumber, "required,phonenumber"); err != nil {
+		log.Printf("[/api/v1/auth/register]: error validating phonenumber %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
 
 	// validating otp
 	if err = apiConfig.TwilioConfig.VerifyOTP(params.Phonenumber, params.OTP); err != nil {
+		log.Printf("[/api/v1/auth/register]: error while otp verificaiton %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
 
 	// checking if the user with the phonenumber already exists
 	if _, err = apiConfig.DB.DoesUserExist(r.Context(), params.Phonenumber); err == nil {
+		log.Printf("[/api/v1/auth/register]: user already exist while trying to register user with phonenumber %s", params.Phonenumber)
 		utility.RespondWithError(w, http.StatusBadRequest, "user already exist")
 		return
 	}
@@ -79,12 +93,14 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 	// validating username
 	err = apiConfig.DataValidator.Var(params.Username, "required,min=4,max=50,username")
 	if err != nil {
+		log.Printf("[/api/v1/auth/register]: error while validating username %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
 
 	// validating password
 	if err = apiConfig.DataValidator.Var(params.Password, "required,min=8,max=20,password"); err != nil {
+		log.Printf("[/api/v1/auth/register]: error while validating password %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
@@ -92,6 +108,7 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 	// hashing password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Printf("[/api/v1/auth/register]: error while creating hash of password %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -103,6 +120,7 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 		Password:    string(hashedPassword),
 	})
 	if err != nil {
+		log.Printf("[/api/v1/auth/register]: error while creating new user %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -124,6 +142,7 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 	})
 }
 
+// endpoint: /api/v1/auth/login
 func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Request) {
 	// extracting user credentials from request body
 	type userCredentials struct {
@@ -135,12 +154,14 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	params := userCredentials{}
 	err := decoder.Decode(&params)
 	if err != nil {
+		log.Printf("[/api/v1/auth/login]: error while decoding request body %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// validating phonenumber
 	if err = apiConfig.DataValidator.Var(params.Phonenumber, "required,phonenumber"); err != nil {
+		log.Printf("[/api/v1/auth/login]: error while validating phonenumber %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
@@ -148,18 +169,21 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	// checking if the user exist with this phonenumber or not
 	user, err := apiConfig.DB.GetUserByPhonenumber(r.Context(), params.Phonenumber)
 	if err != nil {
+		log.Printf("[/api/v1/auth/login]: error fetching user with phonenumber %s, %v", params.Phonenumber, err)
 		utility.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	// validating password
 	if err = apiConfig.DataValidator.Var(params.Password, "required,min=8,max=20,password"); err != nil {
+		log.Printf("[/api/v1/auth/login]: error validating password %v", err)
 		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
 
 	// comparing password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password)); err != nil {
+		log.Printf("[/api/v1/auth/login]: error incorrect password %v", err)
 		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -167,6 +191,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	// creating access token
 	accessToken, err := MakeJWT(user.ID.String(), apiConfig.JwtSecret, time.Hour)
 	if err != nil {
+		log.Printf("[/api/v1/auth/login]: error creating access token for user %s, %v", user.ID.String(), err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -174,6 +199,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	// generating refresh token
 	refreshToken, err := generateRefreshToken()
 	if err != nil {
+		log.Printf("[/api/v1/auth/login]: error generating refresh token for user %s, %v", user.ID.String(), err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -182,6 +208,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 		UserID:    user.ID,
 		ExpiresAt: time.Now().UTC().Add(time.Hour * 24 * 60),
 	}); err != nil {
+		log.Printf("[/api/v1/auth/login]: error saving refresh token for user %s in database %v", user.ID.String(), err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -204,7 +231,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	if err == nil {
 		newMessages.OneToOneMessages = latestOneToOneMessages
 	} else {
-		log.Printf("[LOGIN]: no new one-to-one messages found")
+		log.Printf("[/api/v1/auth/login]: no new one-to-one messages found")
 	}
 
 	// getting latest group messages
@@ -212,7 +239,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	if err == nil {
 		newMessages.GroupMessages = latestGroupMessages
 	} else {
-		log.Printf("[LOGIN]: no new group messages found")
+		log.Printf("[/api/v1/auth/login]: no new group messages found")
 	}
 
 	newMessages.AccessToken = accessToken
