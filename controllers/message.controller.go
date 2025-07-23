@@ -13,6 +13,7 @@ import (
 	"github.com/harshvardha/TerTerChat/utility"
 )
 
+// endpoint: /api/v1/message/create
 func (apiConfig *ApiConfig) CreateNewMessage(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		Description string `json:"description"`
@@ -158,6 +159,7 @@ func (apiConfig *ApiConfig) CreateNewMessage(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// endpoint: /api/v1/message/update
 func (apiConfig *ApiConfig) UpdateMessage(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		ID          uuid.UUID `json:"id"`
@@ -277,6 +279,7 @@ func (apiConfig *ApiConfig) UpdateMessage(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// endpoint: /api/v1/message/delete
 func (apiConfig *ApiConfig) DeleteMessage(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		ID         uuid.UUID `json:"id"`
@@ -384,6 +387,7 @@ func (apiConfig *ApiConfig) DeleteMessage(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// endpoint: /api/v1/message/conversation
 func (apiConfig *ApiConfig) GetConversation(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		ReceiverID uuid.UUID `json:"receiver_id"`
@@ -450,6 +454,7 @@ func (apiConfig *ApiConfig) GetConversation(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// endpoint: /api/v1/message/group/all
 func (apiConfig *ApiConfig) GetAllGroupMessages(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID   uuid.UUID `json:"group_id"`
@@ -515,6 +520,7 @@ func (apiConfig *ApiConfig) GetAllGroupMessages(w http.ResponseWriter, r *http.R
 	})
 }
 
+// endpoint: /api/v1/message/mark/received
 func (apiConfig *ApiConfig) MarkMessageReceived(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		MessageID uuid.UUID `json:"message_id"`
@@ -582,6 +588,7 @@ func (apiConfig *ApiConfig) MarkMessageReceived(w http.ResponseWriter, r *http.R
 	})
 }
 
+// endpoint: /api/v1/message/mark/read
 func (apiConfig *ApiConfig) MarkGroupMessageRead(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		MessageID     uuid.UUID `json:"message_id"`
