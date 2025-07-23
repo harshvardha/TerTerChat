@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// endpoint: /api/v1/users/update/username
 func (apiConfig *ApiConfig) UpdateUsername(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	// extracting new username from request body
 	type request struct {
@@ -56,6 +57,7 @@ func (apiConfig *ApiConfig) UpdateUsername(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// endpoint: /api/v1/users/update/phonenumber
 func (apiConfig *ApiConfig) UpdatePhonenumber(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	// extracting new phonenumber and otp from request body
 	type request struct {
@@ -107,6 +109,7 @@ func (apiConfig *ApiConfig) UpdatePhonenumber(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// endpoint: /api/v1/users/update/password
 func (apiConfig *ApiConfig) UpdatePassword(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	// extracting new password and otp from request body
 	type request struct {
@@ -166,6 +169,7 @@ func (apiConfig *ApiConfig) UpdatePassword(w http.ResponseWriter, r *http.Reques
 	utility.RespondWithJson(w, http.StatusOK, nil)
 }
 
+// endpoint: /api/v1/users/info
 func (apiConfig *ApiConfig) GetUserByPhonenumber(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	// extracting phonenumber from request body
 	type request struct {
@@ -202,6 +206,7 @@ func (apiConfig *ApiConfig) GetUserByPhonenumber(w http.ResponseWriter, r *http.
 	})
 }
 
+// endpoint: /api/v1/users/remove
 func (apiConfig *ApiConfig) RemoveUser(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	if err := apiConfig.DB.RemoveUser(r.Context(), userID); err != nil {
 		log.Printf("[/api/v1/users/remove]: error removing user account %v: %v", userID, err)
