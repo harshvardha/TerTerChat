@@ -12,6 +12,7 @@ import (
 	"github.com/harshvardha/TerTerChat/utility"
 )
 
+// endpoint: /api/v1/groups/create
 func (apiConfig *ApiConfig) CreateGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		Name string `json:"name"`
@@ -70,6 +71,7 @@ func (apiConfig *ApiConfig) CreateGroup(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
+// endpoint: /api/v1/group/update
 func (apiConfig *ApiConfig) UpdateGroupName(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
@@ -133,6 +135,7 @@ func (apiConfig *ApiConfig) UpdateGroupName(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// endpoint: /api/v1/group/remove
 func (apiConfig *ApiConfig) RemoveGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
@@ -177,6 +180,7 @@ func (apiConfig *ApiConfig) RemoveGroup(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
+// endpoint: /api/v1/group/add/user
 func (apiConfig *ApiConfig) AddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
@@ -266,6 +270,7 @@ func (apiConfig *ApiConfig) AddUserToGroup(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// endpoint: /api/v1/group/remove/user
 func (apiConfig *ApiConfig) RemoveUserFromGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
@@ -355,6 +360,7 @@ func (apiConfig *ApiConfig) RemoveUserFromGroup(w http.ResponseWriter, r *http.R
 	})
 }
 
+// endpoint: /api/v1/group/mark/user/admin
 func (apiConfig *ApiConfig) MakeUserAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
@@ -444,6 +450,7 @@ func (apiConfig *ApiConfig) MakeUserAdmin(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// endpoint: /api/v1/group/remove/user/admin
 func (apiConfig *ApiConfig) RemoveUserFromAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
