@@ -24,7 +24,8 @@ const (
 	DISCONNECTED = "DISCONNECTED"
 )
 
-// TODO: add a last_available event handler
+// TODO for later update: add a last_available event handler so that diconnection event does not get emitted from socket server
+// instead it should be emitted from rest server where first we register the last logout time of user then emit disconnection event
 func ConnectionEventHandler(event chan ConnectionEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Println("[EVENT_HANDLER]: connection event handler started")

@@ -71,6 +71,17 @@ type MessageEvent struct {
 	EmittedAt           time.Time
 }
 
+/*
+This event handler will first check which event has been emitted then accordingly will
+create the response byte by using the respective instance of the response structs defined above
+Structure of the response sent by this event handler:
+
+	it will be a byte array containing information about the event that will be relevant to client
+	the byte array is divided into three parts:
+		1. event name
+		2. separator pipe '|'
+		3. instance of response struct
+*/
 func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Printf("[MESSAGE_EVENT_HANDLER]: message event handler started")

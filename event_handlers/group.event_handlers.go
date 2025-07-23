@@ -10,12 +10,14 @@ import (
 	"github.com/harshvardha/TerTerChat/internal/services"
 )
 
+// information about the group that will be provided by event emitted
 type Group struct {
 	ID          uuid.UUID
 	Username    string
 	Phonenumber string
 }
 
+// event information
 type GroupEvent struct {
 	Name                string
 	Group               Group
@@ -24,6 +26,7 @@ type GroupEvent struct {
 	EmittedAt           time.Time
 }
 
+// event types
 const (
 	ADD_USER_TO_GROUP      = "ADD_USER_TO_GROUP"
 	REMOVE_USER_FROM_GROUP = "REMOVE_USER_FROM_GROUP"
@@ -31,12 +34,24 @@ const (
 	REMOVE_ADMIN           = "REMOVE_ADMIN"
 )
 
+// what action had been executed server side will sent to client
+// for appropriate action on the client side
 type action struct {
 	Name      string `json:"name"`
 	Group     Group  `json:"groupID"`
 	EmittedAt string `json:"emittedAt"`
 }
 
+/*
+Structure of the response sent by this event handler:
+
+	it will be a byte array containing information about the event emitted
+	that is relevant for client side.
+	the byte array is divided into three parts:
+		1. event name
+		2. separator pipe '|'
+		3. instance of action struct
+*/
 func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Println("[GROUP_EVENT_HANDLER]: event handler started")
