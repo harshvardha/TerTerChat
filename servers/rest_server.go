@@ -60,6 +60,12 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 		// recieved a signal(for e.g., ctrl+c or SIGTERM)
 		log.Printf("[REST SERVER]: signal recieved %s. shutting down server", sig)
 
+		// shutting down otpCache monitoring
+		apiConfig.TwilioConfig.StopCacheMonitoring()
+
+		// shutting down message cache monitoring
+		apiConfig.MessageCache.StopCacheMonitoring()
+
 		// initiating proper http server shutdown
 		// creating a context with a timeout of 30 sec
 		// which makes sure that shutdown process exits after 30 sec
