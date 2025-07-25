@@ -17,7 +17,7 @@ const (
 
 // this struct is used to cache the expiration time for the otp sent to user phonenumber
 type otpCache struct {
-	otpcache map[string]*time.Time // key: phonenumber of user, value: time at which otp will expire
+	otpcache map[string]time.Time // key: phonenumber of user, value: time at which otp will expire
 	mutex    sync.RWMutex
 	stop     chan struct{} // channel to recieve signal to stop monitoring the cache
 }
@@ -39,12 +39,16 @@ from cache
 */
 func (oc *otpCache) monitorAndRemove() {
 	monitoringInterval := time.NewTicker(time.Minute * expiresAfter)
-	select {
-	case <-monitoringInterval.C:
-		// call the function to check and remove stale entries from cache
-		oc.checkAndRemove()
-	case <-oc.stop:
-		return
+	defer monitoringInterval.Stop()
+
+	for {
+		select {
+		case <-monitoringInterval.C:
+			// call the function to check and remove stale entries from cache
+			oc.checkAndRemove()
+		case <-oc.stop:
+			return
+		}
 	}
 }
 
@@ -53,16 +57,21 @@ checkAndRemove function will be called every 10mins to from monitorAndRemove to 
 and remove any stale entries present in the cache
 */
 func (oc *otpCache) checkAndRemove() {
+	log.Printf("[OTP_SERVICE]: starting checkAndRemove for otpCache")
+	log.Printf("[OTP_SERVICE]: total cache entries before scheduled cleanup: %d", len(oc.otpcache))
 	// acquiring the lock
 	oc.mutex.Lock()
 	defer oc.mutex.Unlock()
 
 	// checking and removing stale entries
 	for key, value := range oc.otpcache {
-		if time.Now().Equal(*value) || time.Now().After(*value) {
+		if time.Now().Equal(value) || time.Now().After(value) {
+			log.Printf("[OTP_SERVICE]: removed key: %s, value: %v from otp cache", key, value)
 			delete(oc.otpcache, key)
 		}
 	}
+
+	log.Printf("[OTP_SERVICE]: total cache entries after scheduled cleanup: %d", len(oc.otpcache))
 }
 
 /*
@@ -73,12 +82,12 @@ identify the expiration time of the otp sent to user
 
 @param value: pointer to time.Time struct which contains the expiration time of otp
 */
-func (oc *otpCache) set(phonenumber string, value *time.Time) {
+func (oc *otpCache) set(phonenumber string, createdAt *time.Time) {
 	// acquiring the lock
 	oc.mutex.Lock()
 	defer oc.mutex.Unlock()
 
-	oc.otpcache[phonenumber] = value
+	oc.otpcache[phonenumber] = createdAt.Add(10 * time.Minute)
 }
 
 /*
@@ -88,14 +97,14 @@ expired or not then based on the result it will return either (nil, err) or (val
 
 @param phonenumber: user phonenumber on which otp was requested
 */
-func (oc *otpCache) get(phonenumber string) (*time.Time, error) {
+func (oc *otpCache) get(phonenumber string) (time.Time, error) {
 	// acquiring the read lock
 	oc.mutex.RLock()
 	defer oc.mutex.RUnlock()
 
 	value, ok := oc.otpcache[phonenumber]
 	if !ok {
-		return nil, fmt.Errorf("no entry found for phonenumber: %s", phonenumber)
+		return time.Time{}, fmt.Errorf("no entry found for phonenumber: %s", phonenumber)
 	}
 
 	return value, nil
@@ -130,7 +139,7 @@ func NewOTPService(twilioAccountSid, verifyServiceSid, twilioAuthToken, channel 
 			Password: twilioAuthToken,
 		}),
 		otpcache: &otpCache{
-			otpcache: make(map[string]*time.Time),
+			otpcache: make(map[string]time.Time),
 			stop:     make(chan struct{}),
 		},
 	}
@@ -144,7 +153,7 @@ func (tc *TwilioConfig) SendOTP(phonenumber string) error {
 	// if the otp is present and expired then new otp will be sent
 	// otherwise the duration after which the user can request otp will be sent as response
 	expirationTime, err := tc.otpcache.get(phonenumber)
-	if err != nil || time.Now().Equal(*expirationTime) {
+	if (err != nil && expirationTime.IsZero()) || time.Now().Equal(expirationTime) || time.Now().After(expirationTime) {
 		params := &openapi.CreateVerificationParams{
 			To:      &phonenumber,
 			Channel: &tc.channel,
@@ -162,7 +171,7 @@ func (tc *TwilioConfig) SendOTP(phonenumber string) error {
 	}
 
 	// returning the duration after which user is allowed to request for new otp
-	return fmt.Errorf("you are allowed to request for new otp after %s", time.Until(*expirationTime))
+	return fmt.Errorf("you are allowed to request for new otp after %s", time.Until(expirationTime).Abs().Round(time.Second))
 }
 
 func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) error {
@@ -191,12 +200,12 @@ func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) error {
 	case "failed":
 		// checking if otp is expired then removing it from cache
 		expirationTime, err := tc.otpcache.get(phonenumber)
-		if err != nil {
+		if err != nil && expirationTime.IsZero() {
 			log.Printf("[OTP_SERVICE]: Error fetching the otp entry from otpcache after failed approval %v", err)
 			return err
 		}
 
-		if time.Now().Equal(*expirationTime) {
+		if time.Now().Equal(expirationTime) || time.Now().After(expirationTime) {
 			if err = tc.otpcache.remove(phonenumber); err != nil {
 				log.Printf("[OTP_SERVICE]: Error removing otp entry from otpcache after failed approval %v", err)
 				return err
@@ -212,4 +221,9 @@ func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) error {
 	}
 
 	return nil
+}
+
+// method to stop cache monitoring
+func (tc *TwilioConfig) StopCacheMonitoring() {
+	close(tc.otpcache.stop)
 }
