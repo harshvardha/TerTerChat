@@ -68,11 +68,13 @@ func (dsc *DynamicShardedCache) monitorAndAdjust() {
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
-	select {
-	case <-ticker.C:
-		dsc.checkAndResize()
-	case <-dsc.stopChan: // signal to stop cache monitoring
-		return
+	for {
+		select {
+		case <-ticker.C:
+			dsc.checkAndResize()
+		case <-dsc.stopChan: // signal to stop cache monitoring
+			return
+		}
 	}
 }
 
@@ -95,6 +97,11 @@ func (dsc *DynamicShardedCache) checkAndResize() {
 			dsc.resize(newShardCount)
 		}
 	}
+}
+
+// method to stop cache monitoring
+func (dsc *DynamicShardedCache) StopCacheMonitoring() {
+	close(dsc.stopChan)
 }
 
 func (dsc *DynamicShardedCache) resize(newShardCount int) {
