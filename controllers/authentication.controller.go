@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -59,10 +58,6 @@ func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Re
 	decoder := json.NewDecoder(r.Body)
 	params := userInformation{}
 	err := decoder.Decode(&params)
-	fmt.Println(params.Username)
-	fmt.Println(params.Phonenumber)
-	fmt.Println(params.Password)
-	fmt.Println(params.OTP)
 	if err != nil {
 		log.Printf("[/api/v1/auth/register]: error decoding request body %v", err)
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
