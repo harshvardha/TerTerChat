@@ -124,7 +124,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case EDIT_MESSAGE:
 			msg, err := json.Marshal(newOrEditMessage{
 				ID:          messageEvent.Message.ID,
@@ -152,7 +152,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case DELETE_MESSAGE:
 			msg, err := json.Marshal(deleteMessage{
 				ID:       messageEvent.Message.ID,
@@ -178,7 +178,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case MESSAGE_RECEIVED:
 			msg, err := json.Marshal(markMessageReceived{
 				ID:         messageEvent.Message.ID,
@@ -203,7 +203,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		case GROUP_MESSAGE_READ:
 			msg, err := json.Marshal(markGroupMessageRead{
 				ID:                  messageEvent.Message.ID,
@@ -230,7 +230,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			go messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
 		}
 
 	}

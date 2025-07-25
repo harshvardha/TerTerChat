@@ -80,7 +80,7 @@ func GroupActionsEventHandler(event chan GroupEvent, wg *sync.WaitGroup) {
 
 		copy(response[offset:], action)
 
-		go groupEvent.NotificationService.PushNotification(groupEvent.Phonenumbers, action)
+		groupEvent.NotificationService.PushNotification(groupEvent.Phonenumbers, action)
 	}
 
 	log.Printf("[GROUP_EVENT_HANDLER]: stopped for %v because event channel was closed", (<-event).Phonenumbers)

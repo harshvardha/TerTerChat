@@ -34,7 +34,7 @@ func ConnectionEventHandler(event chan ConnectionEvent, wg *sync.WaitGroup) {
 		case CONNECTED:
 			go connectionEvent.NotificationService.AddUserConnection(connectionEvent.Phonenumber, connectionEvent.ConnectionInstance)
 		case DISCONNECTED:
-			go connectionEvent.NotificationService.RemoveUserConnection(connectionEvent.Phonenumber, connectionEvent.DB)
+			connectionEvent.NotificationService.RemoveUserConnection(connectionEvent.Phonenumber, connectionEvent.DB)
 		}
 	}
 
