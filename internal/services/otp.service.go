@@ -149,29 +149,29 @@ func NewOTPService(twilioAccountSid, verifyServiceSid, twilioAuthToken, channel 
 }
 
 func (tc *TwilioConfig) SendOTP(phonenumber string) error {
-	// checking if there is already an non-expired otp sent to user
-	// if the otp is present and expired then new otp will be sent
-	// otherwise the duration after which the user can request otp will be sent as response
-	expirationTime, err := tc.otpcache.get(phonenumber)
-	if (err != nil && expirationTime.IsZero()) || time.Now().Equal(expirationTime) || time.Now().After(expirationTime) {
-		params := &openapi.CreateVerificationParams{
-			To:      &phonenumber,
-			Channel: &tc.channel,
-		}
-
-		response, err := tc.client.VerifyV2.CreateVerification(tc.verifyServiceSid, params)
-		if err != nil {
-			log.Printf("[OTP_SERVICE]: Error sending otp to user %v", err)
-			return err
-		}
-
-		// setting new entry in the otpcache
-		tc.otpcache.set(phonenumber, response.DateCreated)
-		return nil
+	params := &openapi.CreateVerificationParams{
+		To:      &phonenumber,
+		Channel: &tc.channel,
 	}
 
-	// returning the duration after which user is allowed to request for new otp
-	return fmt.Errorf("you are allowed to request for new otp after %s", time.Until(expirationTime).Abs().Round(time.Second))
+	response, err := tc.client.VerifyV2.CreateVerification(tc.verifyServiceSid, params)
+	if err != nil {
+		log.Printf("[OTP_SERVICE]: Error sending otp to user %v", err)
+		return err
+	}
+
+	// setting new entry in the otpcache
+	tc.otpcache.set(phonenumber, response.DateCreated)
+	return nil
+}
+
+func (tc *TwilioConfig) IsResendAllowed(phonenumber string) (bool, error) {
+	expirationTime, err := tc.otpcache.get(phonenumber)
+	if err == nil && time.Now().Before(expirationTime) {
+		return false, fmt.Errorf("you are allowed to request for new otp after %s", time.Until(expirationTime).Abs().Round(time.Second))
+	}
+
+	return true, nil
 }
 
 func (tc *TwilioConfig) VerifyOTP(phonenumber string, code string) error {

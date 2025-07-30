@@ -34,6 +34,13 @@ func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// checking if requesting otp is allowed or not
+	if ok, err := apiConfig.TwilioConfig.IsResendAllowed(params.Phonenumber); !ok {
+		log.Printf("[/api/v1/auth/otp/send]: %v", err)
+		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	// sending otp to phonenumber
 	err = apiConfig.TwilioConfig.SendOTP(params.Phonenumber)
 	if err != nil {
