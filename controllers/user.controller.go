@@ -213,4 +213,6 @@ func (apiConfig *ApiConfig) RemoveUser(w http.ResponseWriter, r *http.Request, u
 		utility.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
+
+	utility.RespondWithJson(w, http.StatusOK, uuid.Nil)
 }
