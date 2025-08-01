@@ -230,7 +230,6 @@ func StartTCPServer(port string, notificationService *services.Notification, db 
 				log.Println("[TCP LISTENER]: Listener closed, stopping connection accept loop.")
 				break
 			}
-			log.Printf("[TCP LISTENER]: Error accepting connections: %v", err)
 			continue
 		}
 
