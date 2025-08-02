@@ -234,11 +234,16 @@ func StartTCPServer(port string, notificationService *services.Notification, db 
 		}
 
 		// emitting connected event to connection event handler
+		err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			log.Printf("[TCP_SERVER]: error setting read deadline: %v", err)
+		}
 		n, err := conn.Read(buffer)
 		if err != nil {
 			log.Printf("[TCP SERVER]: error reading phonenumber from connection: %v", err)
 			continue
 		}
+
 		phonenumber := strings.TrimSpace(string(buffer[:n]))
 		connectionEventChannel <- eventhandlers.ConnectionEvent{
 			Name:                "CONNECTED",
