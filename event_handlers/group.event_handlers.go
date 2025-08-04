@@ -38,7 +38,7 @@ const (
 // for appropriate action on the client side
 type action struct {
 	Name      string `json:"name"`
-	Group     Group  `json:"groupID"`
+	Group     Group  `json:"group"`
 	EmittedAt string `json:"emittedAt"`
 }
 
