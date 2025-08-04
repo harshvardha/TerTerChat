@@ -238,6 +238,7 @@ func StartTCPServer(port string, notificationService *services.Notification, db 
 		if err != nil {
 			log.Printf("[TCP_SERVER]: error setting read deadline: %v", err)
 		}
+
 		n, err := conn.Read(buffer)
 		if err != nil {
 			log.Printf("[TCP SERVER]: error reading phonenumber from connection: %v", err)
