@@ -199,7 +199,7 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 	}
 
 	// generating refresh token if it already does not exist
-	if token, err := apiConfig.DB.RefreshTokenExist(r.Context(), user.ID); err != nil || time.Now().Equal(token.ExpiresAt) {
+	if refreshTokenExpirationTime, err := apiConfig.DB.GetRefreshTokenExpirationTime(r.Context(), user.ID); err != nil || time.Now().Equal(refreshTokenExpirationTime) {
 		refreshToken, err := generateRefreshToken()
 		if err != nil {
 			log.Printf("[/api/v1/auth/login]: error generating refresh token for user %s, %v", user.ID.String(), err)
