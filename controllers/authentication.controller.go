@@ -198,21 +198,23 @@ func (apiConfig *ApiConfig) HandleLoginUser(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// generating refresh token
-	refreshToken, err := generateRefreshToken()
-	if err != nil {
-		log.Printf("[/api/v1/auth/login]: error generating refresh token for user %s, %v", user.ID.String(), err)
-		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err = apiConfig.DB.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
-		Token:     refreshToken,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().UTC().Add(time.Hour * 24 * 60),
-	}); err != nil {
-		log.Printf("[/api/v1/auth/login]: error saving refresh token for user %s in database %v", user.ID.String(), err)
-		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	// generating refresh token if it already does not exist
+	if token, err := apiConfig.DB.RefreshTokenExist(r.Context(), user.ID); err != nil || time.Now().Equal(token.ExpiresAt) {
+		refreshToken, err := generateRefreshToken()
+		if err != nil {
+			log.Printf("[/api/v1/auth/login]: error generating refresh token for user %s, %v", user.ID.String(), err)
+			utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err = apiConfig.DB.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+			Token:     refreshToken,
+			UserID:    user.ID,
+			ExpiresAt: time.Now().UTC().Add(time.Hour * 24 * 60),
+		}); err != nil {
+			log.Printf("[/api/v1/auth/login]: error saving refresh token for user %s in database %v", user.ID.String(), err)
+			utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	type latestMessages struct {
