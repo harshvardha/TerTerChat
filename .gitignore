@@ -1,6 +1,2 @@
 .env
 *.exe
-*.crt
-*.key
-*.srl
-*.csr
