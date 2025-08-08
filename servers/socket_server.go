@@ -19,7 +19,7 @@ import (
 const (
 	pingMessage  = "_PING_\n"
 	pongMessage  = "_PONG_\n"
-	pingInterval = 2 * time.Minute
+	pingInterval = 5 * time.Second
 	pingTimeout  = 5 * time.Second
 
 	// server certificate and key file paths
@@ -67,15 +67,14 @@ func handleTLSConnections(connection net.Conn, phonenumber string, db *database.
 		return
 	}
 
-	// creating channels for communication between readFromConnection and writeToConnection
-	writer := make(chan []byte, 10)
+	// creating channel for communication between readFromConnection and writeToConnection
 	stopChan := make(chan struct{}) // this will be used to know whether to stop the heartbeat mechanism for the connection or not
 
 	// reader go-routine
-	go readFromConnection(connection, phonenumber, db, notificationService, connectionEventChannel, writer, stopChan, quit)
+	go readFromConnection(connection, phonenumber, db, notificationService, connectionEventChannel, stopChan, quit)
 
 	// writer go-routine
-	go writeToConnection(connection, phonenumber, db, notificationService, connectionEventChannel, writer, stopChan, quit)
+	go writeToConnection(connection, phonenumber, db, notificationService, connectionEventChannel, stopChan, quit)
 
 	// blocking until signal recieved to stop heartbeat mechanism
 	<-stopChan
@@ -83,7 +82,7 @@ func handleTLSConnections(connection net.Conn, phonenumber string, db *database.
 }
 
 // reader go-routine to read pong messages if server sends ping or respond with pong messages if client sends ping
-func readFromConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer chan<- []byte, stopChan chan struct{}, quit <-chan os.Signal) {
+func readFromConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, stopChan chan struct{}, quit <-chan os.Signal) {
 	defer func() {
 		log.Printf("[CONNECTION READER FOR %s]: Exiting", connection.RemoteAddr())
 		stopChan <- struct{}{}
@@ -133,13 +132,6 @@ func readFromConnection(connection net.Conn, phonenumber string, db *database.Qu
 			// reading message
 			msgString := strings.TrimSpace(string(message))
 			switch msgString {
-			case pingMessage[:len(pingMessage)-1]:
-				// checking if the writer is available or not
-				select {
-				case writer <- []byte(pongMessage): // sending pong message to client
-				default:
-					log.Printf("[CONNECTION READER FOR %s]: writer channel busy. cannot send pong message", connection.RemoteAddr())
-				}
 			case pongMessage[:len(pingMessage)-1]:
 				log.Printf("[CONNECTION READER FOR %s]: recieved pong message.", connection.RemoteAddr())
 			}
@@ -147,7 +139,7 @@ func readFromConnection(connection net.Conn, phonenumber string, db *database.Qu
 	}
 }
 
-func writeToConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, writer <-chan []byte, stopChan chan struct{}, quit <-chan os.Signal) {
+func writeToConnection(connection net.Conn, phonenumber string, db *database.Queries, notificationService *services.Notification, connectionEventChannel chan eventhandlers.ConnectionEvent, stopChan chan struct{}, quit <-chan os.Signal) {
 	ticker := time.NewTicker(pingInterval)
 	defer func() {
 		log.Printf("[CONNECTION WRITER FOR %s]: Exiting.", connection.RemoteAddr())
@@ -157,30 +149,6 @@ func writeToConnection(connection net.Conn, phonenumber string, db *database.Que
 
 	for {
 		select {
-		case message, ok := <-writer:
-			log.Printf("[CONNECTION WRITER FOR %s]: writing pong message to connection", connection.RemoteAddr())
-			if !ok {
-				log.Printf("[CONNECTION WRITER FOR %s]: writer channel closed.", connection.RemoteAddr())
-				return // channel closed, writer will exit
-			}
-			connection.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			if _, err := connection.Write(message); err != nil {
-				log.Printf("[CONNECTION WRITER FOR %s]: error writing to connection, ERR: %v", connection.RemoteAddr(), err)
-
-				// emitting connection disconnected event
-				connectionEventChannel <- eventhandlers.ConnectionEvent{
-					Name:                "DISCONNECTED",
-					Phonenumber:         phonenumber,
-					ConnectionInstance:  nil,
-					DB:                  db,
-					NotificationService: notificationService,
-					EmittedAt:           time.Now(),
-				}
-
-				return
-			} else {
-				log.Printf("[CONNECTION WRITER FOR %s]: %s message written to client", connection.RemoteAddr(), message)
-			}
 		case <-ticker.C:
 			log.Printf("[CONNECTION WRITER FOR %s]: writing ping message to connection", connection.RemoteAddr())
 			connection.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -199,6 +167,7 @@ func writeToConnection(connection net.Conn, phonenumber string, db *database.Que
 
 				return
 			}
+
 		case <-stopChan:
 			// if anything wrong goes into readFromConnection it will signal writeToConnection to stop
 			// this does not mean that server is stopped
