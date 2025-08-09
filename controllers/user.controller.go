@@ -113,9 +113,8 @@ func (apiConfig *ApiConfig) UpdatePhonenumber(w http.ResponseWriter, r *http.Req
 func (apiConfig *ApiConfig) UpdatePassword(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	// extracting new password and otp from request body
 	type request struct {
-		Password    string `json:"password"`
-		Phonenumber string `json:"phonenumber"`
-		OTP         string `json:"otp"`
+		Password string `json:"password"`
+		OTP      string `json:"otp"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -127,8 +126,16 @@ func (apiConfig *ApiConfig) UpdatePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// checking if the user with userID exist or not
+	user, err := apiConfig.DB.GetUserById(r.Context(), userID)
+	if err != nil {
+		log.Printf("[/api/v1/users/update/password]: user with id %s does not exist", userID.String())
+		utility.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
 	// validating otp
-	if err = apiConfig.TwilioConfig.VerifyOTP(params.Phonenumber, params.OTP); err != nil {
+	if err = apiConfig.TwilioConfig.VerifyOTP(user.Phonenumber, params.OTP); err != nil {
 		log.Printf("[/api/v1/users/update/password]: error validating otp while updating password: %v", err)
 		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
