@@ -52,6 +52,33 @@ func (apiConfig *ApiConfig) HandleSendOTP(w http.ResponseWriter, r *http.Request
 	utility.RespondWithJson(w, http.StatusOK, nil)
 }
 
+// endpoint: /api/v1/auth/otp/send/registeredPhonenumber
+func (apiConfig *ApiConfig) HandleSendOTPTORegisteredPhonenumber(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+	// checking if the user with userID exist or not
+	user, err := apiConfig.DB.GetUserById(r.Context(), userID)
+	if err != nil {
+		log.Printf("[/api/v1/auth/otp/send/registeredPhonenumber]: user with id %s does not exist", userID.String())
+		utility.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// checking if the sending otp is allowed on the registered phonenumber
+	if ok, err := apiConfig.TwilioConfig.IsResendAllowed(user.Phonenumber); !ok {
+		log.Printf("[/api/v1/auth/otp/send/registeredPhonenumber]: %v", err)
+		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// sending otp to registered phonenumber
+	if err = apiConfig.TwilioConfig.SendOTP(user.Phonenumber); err != nil {
+		log.Printf("[/api/v1/auth/otp/send/registeredPhonenumber]: error sending otp on registered phonenumber: %v", err)
+		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utility.RespondWithJson(w, http.StatusOK, nil)
+}
+
 // endpoint: /api/v1/auth/register
 func (apiConfig *ApiConfig) HandleRegisterUser(w http.ResponseWriter, r *http.Request) {
 	// extracting user information from request body
