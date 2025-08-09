@@ -25,6 +25,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 
 	// api endpoints for authentication
 	router.HandleFunc("POST /api/v1/auth/otp/send", apiConfig.HandleSendOTP)
+	router.HandleFunc("POST /api/v1/auth/otp/send/registeredPhonenumber", middlewares.ValidateJWT(apiConfig.HandleSendOTPTORegisteredPhonenumber, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("POST /api/v1/auth/register", apiConfig.HandleRegisterUser)
 	router.HandleFunc("POST /api/v1/auth/login", apiConfig.HandleLoginUser)
 
