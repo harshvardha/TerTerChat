@@ -24,11 +24,18 @@ type GroupAdmin struct {
 	CreatedAt time.Time
 }
 
-type GroupmessageGroupmember struct {
+type GroupMessageRead struct {
 	MessageID     uuid.UUID
 	GroupMemberID uuid.UUID
 	GroupID       uuid.UUID
 	CreatedAt     time.Time
+}
+
+type GroupMessageReceived struct {
+	MessageID     uuid.UUID
+	GroupMemberID uuid.UUID
+	GroupID       uuid.UUID
+	ReceivedAt    time.Time
 }
 
 type Message struct {
@@ -41,6 +48,7 @@ type Message struct {
 	Recieved    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Read        bool
 }
 
 type RefreshToken struct {

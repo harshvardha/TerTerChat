@@ -12,6 +12,40 @@ import (
 	"github.com/google/uuid"
 )
 
+const countOfGroupMembersWhoReadMessage = `-- name: CountOfGroupMembersWhoReadMessage :one
+select count(*) from group_message_read where message_id = $1 and group_member_id = $2 and group_id = $3
+`
+
+type CountOfGroupMembersWhoReadMessageParams struct {
+	MessageID     uuid.UUID
+	GroupMemberID uuid.UUID
+	GroupID       uuid.UUID
+}
+
+func (q *Queries) CountOfGroupMembersWhoReadMessage(ctx context.Context, arg CountOfGroupMembersWhoReadMessageParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOfGroupMembersWhoReadMessage, arg.MessageID, arg.GroupMemberID, arg.GroupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOfGroupMembersWhoReceivedMessage = `-- name: CountOfGroupMembersWhoReceivedMessage :one
+select count(*) from group_message_received where message_id = $1 and group_member_id = $2 and group_id = $3
+`
+
+type CountOfGroupMembersWhoReceivedMessageParams struct {
+	MessageID     uuid.UUID
+	GroupMemberID uuid.UUID
+	GroupID       uuid.UUID
+}
+
+func (q *Queries) CountOfGroupMembersWhoReceivedMessage(ctx context.Context, arg CountOfGroupMembersWhoReceivedMessageParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOfGroupMembersWhoReceivedMessage, arg.MessageID, arg.GroupMemberID, arg.GroupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMessage = `-- name: CreateMessage :one
 insert into messages(
     id, description, sender_id, reciever_id,
@@ -21,7 +55,7 @@ values(
     gen_random_uuid(),
     $1, $2, $3, $4, $5, NOW(), NOW()
 )
-returning id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at
+returning id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read
 `
 
 type CreateMessageParams struct {
@@ -51,6 +85,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.Recieved,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Read,
 	)
 	return i, err
 }
@@ -88,7 +123,7 @@ func (q *Queries) GetAllGroupConversations(ctx context.Context, senderID uuid.UU
 }
 
 const getAllGroupMessages = `-- name: GetAllGroupMessages :many
-select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at from messages where group_id = $1 and created_at < $2 order by created_at limit 10
+select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read from messages where group_id = $1 and created_at < $2 order by created_at limit 10
 `
 
 type GetAllGroupMessagesParams struct {
@@ -115,6 +150,7 @@ func (q *Queries) GetAllGroupMessages(ctx context.Context, arg GetAllGroupMessag
 			&i.Recieved,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Read,
 		); err != nil {
 			return nil, err
 		}
@@ -130,7 +166,7 @@ func (q *Queries) GetAllGroupMessages(ctx context.Context, arg GetAllGroupMessag
 }
 
 const getAllMessages = `-- name: GetAllMessages :many
-select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at from messages where sender_id = $1 and reciever_id = $2 and created_at < $3 order by created_at limit 10
+select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read from messages where sender_id = $1 and reciever_id = $2 and created_at < $3 order by created_at limit 10
 `
 
 type GetAllMessagesParams struct {
@@ -158,6 +194,7 @@ func (q *Queries) GetAllMessages(ctx context.Context, arg GetAllMessagesParams) 
 			&i.Recieved,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Read,
 		); err != nil {
 			return nil, err
 		}
@@ -280,7 +317,7 @@ func (q *Queries) GetLatestMessagesByRecieverID(ctx context.Context, arg GetLate
 }
 
 const markGroupMessageRead = `-- name: MarkGroupMessageRead :exec
-insert into groupmessage_groupmembers(message_id, group_member_id, group_id, created_at)
+insert into group_message_read(message_id, group_member_id, group_id, read_at)
 values($1, $2, $3, NOW())
 `
 
@@ -295,19 +332,41 @@ func (q *Queries) MarkGroupMessageRead(ctx context.Context, arg MarkGroupMessage
 	return err
 }
 
-const markMessageReceived = `-- name: MarkMessageReceived :one
-update messages set received = true where id = $1 and reciever_id = $2 and sender_id = $3
+const markGroupMessageReceived = `-- name: MarkGroupMessageReceived :exec
+insert into group_message_received(message_id, group_member_id, group_id, received_at)
+values($1, $2, $3, NOW())
+`
+
+type MarkGroupMessageReceivedParams struct {
+	MessageID     uuid.UUID
+	GroupMemberID uuid.UUID
+	GroupID       uuid.UUID
+}
+
+func (q *Queries) MarkGroupMessageReceived(ctx context.Context, arg MarkGroupMessageReceivedParams) error {
+	_, err := q.db.ExecContext(ctx, markGroupMessageReceived, arg.MessageID, arg.GroupMemberID, arg.GroupID)
+	return err
+}
+
+const markMessageRead = `-- name: MarkMessageRead :one
+update messages set read = true and updated_at = NOW() where id = $1
 returning updated_at
 `
 
-type MarkMessageReceivedParams struct {
-	ID         uuid.UUID
-	RecieverID uuid.NullUUID
-	SenderID   uuid.UUID
+func (q *Queries) MarkMessageRead(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, markMessageRead, id)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }
 
-func (q *Queries) MarkMessageReceived(ctx context.Context, arg MarkMessageReceivedParams) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, markMessageReceived, arg.ID, arg.RecieverID, arg.SenderID)
+const markMessageReceived = `-- name: MarkMessageReceived :one
+update messages set received = true and updated_at = NOW() where id = $1
+returning updated_at
+`
+
+func (q *Queries) MarkMessageReceived(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, markMessageReceived, id)
 	var updated_at time.Time
 	err := row.Scan(&updated_at)
 	return updated_at, err
@@ -342,9 +401,23 @@ func (q *Queries) RemoveMessage(ctx context.Context, arg RemoveMessageParams) (R
 	return i, err
 }
 
+const removeMessages = `-- name: RemoveMessages :exec
+delete from messages where sender_id = $1 and reciever_id = $2
+`
+
+type RemoveMessagesParams struct {
+	SenderID   uuid.UUID
+	RecieverID uuid.NullUUID
+}
+
+func (q *Queries) RemoveMessages(ctx context.Context, arg RemoveMessagesParams) error {
+	_, err := q.db.ExecContext(ctx, removeMessages, arg.SenderID, arg.RecieverID)
+	return err
+}
+
 const updateMessage = `-- name: UpdateMessage :one
 update messages set description = $1, updated_at = NOW() where id = $2 and sender_id = $3 and group_id = $4
-returning description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at
+returning description, sender_id, reciever_id, group_id, sent, recieved, read, created_at, updated_at
 `
 
 type UpdateMessageParams struct {
@@ -361,6 +434,7 @@ type UpdateMessageRow struct {
 	GroupID     uuid.NullUUID
 	Sent        bool
 	Recieved    bool
+	Read        bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -380,6 +454,7 @@ func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (U
 		&i.GroupID,
 		&i.Sent,
 		&i.Recieved,
+		&i.Read,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

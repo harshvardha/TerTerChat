@@ -35,3 +35,6 @@ delete from groups where id = $1;
 
 -- name: IsUserAdmin :one
 select 1 from group_admins where user_id = $1 and group_id = $2;
+
+-- name: GroupMembersCount :one
+select count(*) from users_groups where group_id = $1;

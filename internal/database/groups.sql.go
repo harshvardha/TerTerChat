@@ -145,6 +145,17 @@ func (q *Queries) GetGroupMembersPhonenumbers(ctx context.Context, groupID uuid.
 	return items, nil
 }
 
+const groupMembersCount = `-- name: GroupMembersCount :one
+select count(*) from users_groups where group_id = $1
+`
+
+func (q *Queries) GroupMembersCount(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, groupMembersCount, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const isUserAdmin = `-- name: IsUserAdmin :one
 select 1 from group_admins where user_id = $1 and group_id = $2
 `
