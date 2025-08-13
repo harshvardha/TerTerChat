@@ -36,6 +36,17 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	router.HandleFunc("GET /api/v1/users/info", middlewares.ValidateJWT(apiConfig.GetUserByPhonenumber, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("DELETE /api/v1/users/remove", middlewares.ValidateJWT(apiConfig.RemoveUser, apiConfig.JwtSecret, apiConfig.DB))
 
+	// api endpoints for messages
+	router.HandleFunc("POST /api/v1/message/create", middlewares.ValidateJWT(apiConfig.CreateNewMessage, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/message/update", middlewares.ValidateJWT(apiConfig.UpdateMessage, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("DELETE /api/v1/message/delete", middlewares.ValidateJWT(apiConfig.DeleteMessage, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("GET /api/v1/message/conversation", middlewares.ValidateJWT(apiConfig.GetConversation, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("GET /api/v1/message/group/all", middlewares.ValidateJWT(apiConfig.GetAllGroupMessages, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/message/mark/received", middlewares.ValidateJWT(apiConfig.MarkMessageReceived, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/message/mark/read", middlewares.ValidateJWT(apiConfig.HandleMarkMessageRead, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/message/group/mark/received", middlewares.ValidateJWT(apiConfig.HandleMarkGroupMessageReceived, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/message/group/mark/read", middlewares.ValidateJWT(apiConfig.MarkGroupMessageRead, apiConfig.JwtSecret, apiConfig.DB))
+
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: router,

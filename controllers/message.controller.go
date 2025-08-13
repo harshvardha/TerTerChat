@@ -588,6 +588,16 @@ func (apiConfig *ApiConfig) MarkMessageReceived(w http.ResponseWriter, r *http.R
 	})
 }
 
+// endpoint: /api/v1/message/mark/read
+func (apiConfig *ApiConfig) HandleMarkMessageRead(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+
+}
+
+// endpoint: /api/v1/message/group/mark/received
+func (apiConfig *ApiConfig) HandleMarkGroupMessageReceived(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+
+}
+
 // endpoint: /api/v1/message/group/mark/read
 func (apiConfig *ApiConfig) MarkGroupMessageRead(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
