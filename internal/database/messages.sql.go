@@ -55,6 +55,38 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
+const getAllGroupConversations = `-- name: GetAllGroupConversations :many
+select distinct messages.group_id as group_id, groups.name as group_name from messages join groups on messages.group_id = groups.id where messages.sender_id = $1
+`
+
+type GetAllGroupConversationsRow struct {
+	GroupID   uuid.NullUUID
+	GroupName string
+}
+
+func (q *Queries) GetAllGroupConversations(ctx context.Context, senderID uuid.UUID) ([]GetAllGroupConversationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllGroupConversations, senderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllGroupConversationsRow
+	for rows.Next() {
+		var i GetAllGroupConversationsRow
+		if err := rows.Scan(&i.GroupID, &i.GroupName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAllGroupMessages = `-- name: GetAllGroupMessages :many
 select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at from messages where group_id = $1 and created_at < $2 order by created_at limit 10
 `
@@ -127,6 +159,38 @@ func (q *Queries) GetAllMessages(ctx context.Context, arg GetAllMessagesParams) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllOneToOneConversations = `-- name: GetAllOneToOneConversations :many
+select distinct messages.reciever_id as reciever_id, users.username as username from messages join users on messages.reciever_id = users.id where messages.sender_id = $1
+`
+
+type GetAllOneToOneConversationsRow struct {
+	RecieverID uuid.NullUUID
+	Username   string
+}
+
+func (q *Queries) GetAllOneToOneConversations(ctx context.Context, senderID uuid.UUID) ([]GetAllOneToOneConversationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllOneToOneConversations, senderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllOneToOneConversationsRow
+	for rows.Next() {
+		var i GetAllOneToOneConversationsRow
+		if err := rows.Scan(&i.RecieverID, &i.Username); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

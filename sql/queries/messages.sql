@@ -40,3 +40,9 @@ returning updated_at;
 -- name: MarkGroupMessageRead :exec
 insert into groupmessage_groupmembers(message_id, group_member_id, group_id, created_at)
 values($1, $2, $3, NOW());
+
+-- name: GetAllOneToOneConversations :many
+select distinct messages.reciever_id as reciever_id, users.username as username from messages join users on messages.reciever_id = users.id where messages.sender_id = $1;
+
+-- name: GetAllGroupConversations :many
+select distinct messages.group_id as group_id, groups.name as group_name from messages join groups on messages.group_id = groups.id where messages.sender_id = $1;
