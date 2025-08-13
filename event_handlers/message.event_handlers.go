@@ -241,10 +241,8 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case GROUP_MESSAGE_RECEIVED:
 			msg, err := json.Marshal(markGroupMessageReadOrReceived{
-				ID:                  messageEvent.Message.ID,
-				GroupID:             messageEvent.Message.GroupID,
-				GroupMemberID:       messageEvent.Message.GroupMemberID,
-				GroupMemberUsername: messageEvent.Message.GroupMemberName,
+				ID:      messageEvent.Message.ID,
+				GroupID: messageEvent.Message.GroupID,
 			})
 			if err != nil {
 				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for GROUP_MESSAGE_RECEIVED event: %v", err)
@@ -266,10 +264,8 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case GROUP_MESSAGE_READ:
 			msg, err := json.Marshal(markGroupMessageReadOrReceived{
-				ID:                  messageEvent.Message.ID,
-				GroupID:             messageEvent.Message.GroupID,
-				GroupMemberID:       messageEvent.Message.GroupMemberID,
-				GroupMemberUsername: messageEvent.Message.GroupMemberName,
+				ID:      messageEvent.Message.ID,
+				GroupID: messageEvent.Message.GroupID,
 			})
 			if err != nil {
 				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for group_message_read: %v", err)
