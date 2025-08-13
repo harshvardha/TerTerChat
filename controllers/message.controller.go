@@ -588,7 +588,7 @@ func (apiConfig *ApiConfig) MarkMessageReceived(w http.ResponseWriter, r *http.R
 	})
 }
 
-// endpoint: /api/v1/message/mark/read
+// endpoint: /api/v1/message/group/mark/read
 func (apiConfig *ApiConfig) MarkGroupMessageRead(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		MessageID     uuid.UUID `json:"message_id"`
