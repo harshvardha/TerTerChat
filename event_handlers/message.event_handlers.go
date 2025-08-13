@@ -47,8 +47,15 @@ type markMessageReceived struct {
 	ReceiverID uuid.UUID `json:"receiver_id"`
 }
 
-// Message data for GROUP_MESSAGE_READ event
-type markGroupMessageRead struct {
+// Message data for MESSAGE_READ event
+type markMessageRead struct {
+	ID         uuid.UUID `json:"id"`
+	SenderID   uuid.UUID `json:"sender_id"`
+	ReceiverID uuid.UUID `json:"receiver_id"`
+}
+
+// Message data for GROUP_MESSAGE_READ and GROUP_MESSAGE_RECEIVED event
+type markGroupMessageReadOrReceived struct {
 	ID                  uuid.UUID `json:"id"`
 	GroupID             uuid.UUID `json:"group_id"`
 	GroupMemberID       uuid.UUID `json:"group_member_id"`
@@ -56,11 +63,13 @@ type markGroupMessageRead struct {
 }
 
 const (
-	NEW_MESSAGE        = "NEW_MESSAGE"
-	EDIT_MESSAGE       = "EDIT_MESSAGE"
-	DELETE_MESSAGE     = "DELETE_MESSAGE"
-	MESSAGE_RECEIVED   = "MARK_MESSAGE_RECEIVED"
-	GROUP_MESSAGE_READ = "GROUP_MESSAGE_READ"
+	NEW_MESSAGE            = "NEW_MESSAGE"
+	EDIT_MESSAGE           = "EDIT_MESSAGE"
+	DELETE_MESSAGE         = "DELETE_MESSAGE"
+	MESSAGE_RECEIVED       = "MARK_MESSAGE_RECEIVED"
+	MESSAGE_READ           = "MARK_MESSAGE_READ"
+	GROUP_MESSAGE_RECEIVED = "GROUP_MESSAGE_RECEIVED"
+	GROUP_MESSAGE_READ     = "GROUP_MESSAGE_READ"
 )
 
 type MessageEvent struct {
@@ -152,7 +161,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case DELETE_MESSAGE:
 			msg, err := json.Marshal(deleteMessage{
 				ID:       messageEvent.Message.ID,
@@ -178,7 +187,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case MESSAGE_RECEIVED:
 			msg, err := json.Marshal(markMessageReceived{
 				ID:         messageEvent.Message.ID,
@@ -203,9 +212,60 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
+		case MESSAGE_READ:
+			msg, err := json.Marshal(markMessageRead{
+				ID:         messageEvent.Message.ID,
+				SenderID:   messageEvent.Message.SenderID,
+				ReceiverID: messageEvent.Message.ReceiverID,
+			})
+			if err != nil {
+				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for MESSAGE_READ event: %v", err)
+				continue
+			}
+
+			// final response
+			response := make([]byte, len(eventNameByte)+len(msg)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+			offset += len(eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+			offset++
+
+			// copying the message
+			copy(response[offset:], msg)
+
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
+		case GROUP_MESSAGE_RECEIVED:
+			msg, err := json.Marshal(markGroupMessageReadOrReceived{
+				ID:                  messageEvent.Message.ID,
+				GroupID:             messageEvent.Message.GroupID,
+				GroupMemberID:       messageEvent.Message.GroupMemberID,
+				GroupMemberUsername: messageEvent.Message.GroupMemberName,
+			})
+			if err != nil {
+				log.Printf("[MESSAGE_EVENT_HANDLER]: error marshalling json for GROUP_MESSAGE_RECEIVED event: %v", err)
+				continue
+			}
+
+			// final response
+			response := make([]byte, len(msg)+len(eventNameByte)+1)
+
+			// copying the event name into response
+			copy(response[offset:], eventNameByte)
+
+			// copying the byte for separator
+			copy(response[offset:], separator)
+
+			// copying the message byte
+			copy(response[offset:], msg)
+
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		case GROUP_MESSAGE_READ:
-			msg, err := json.Marshal(markGroupMessageRead{
+			msg, err := json.Marshal(markGroupMessageReadOrReceived{
 				ID:                  messageEvent.Message.ID,
 				GroupID:             messageEvent.Message.GroupID,
 				GroupMemberID:       messageEvent.Message.GroupMemberID,
@@ -230,7 +290,7 @@ func MessageEventHandler(event chan MessageEvent, wg *sync.WaitGroup) {
 			// copying the message
 			copy(response[offset:], msg)
 
-			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, msg)
+			messageEvent.NotificationService.PushNotification(messageEvent.Phonenumbers, response)
 		}
 
 	}
