@@ -486,7 +486,7 @@ func (apiConfig *ApiConfig) HandleDeleteConversation(w http.ResponseWriter, r *h
 func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		ReceiverID uuid.NullUUID `json:"receiver_id"`
-		CreatedAt  time.Time     `json:"created_at"`
+		Before     time.Time     `json:"before"`
 	}
 
 	type response struct {
@@ -511,7 +511,7 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 		return
 	}
 
-	if params.CreatedAt.IsZero() {
+	if params.Before.IsZero() {
 		log.Printf("[/api/v1/message/conversation]: empty created_at time")
 		utility.RespondWithError(w, http.StatusBadRequest, "empty created at time")
 		return
@@ -521,7 +521,7 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 	// if messages are not present in cache then hitting database
 	// fetching group messages with limit 10 sorted in ascending order by created_at
 	var messages []database.Message
-	messages = apiConfig.MessageCache.Get(userID.String()+params.ReceiverID.UUID.String(), params.CreatedAt)
+	messages = apiConfig.MessageCache.Get(userID.String()+params.ReceiverID.UUID.String(), params.Before)
 	if messages != nil {
 		utility.RespondWithJson(w, http.StatusOK, response{
 			Messages:    messages,
@@ -533,7 +533,7 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 	messages, err = apiConfig.DB.GetAllMessages(r.Context(), database.GetAllMessagesParams{
 		SenderID:   userID,
 		RecieverID: params.ReceiverID,
-		CreatedAt:  params.CreatedAt,
+		CreatedAt:  params.Before,
 	})
 	if err != nil {
 		log.Printf("[/api/v1/message/conversation]: error fetching messages: %v", err)
@@ -548,7 +548,7 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 			UUID:  userID,
 			Valid: true,
 		},
-		CreatedAt: params.CreatedAt,
+		CreatedAt: params.Before,
 	})
 	if err != nil {
 		log.Printf("[/api/v1/message/conversation]: error fetching messages: %v", err)
@@ -565,8 +565,8 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 // endpoint: /api/v1/message/group/all
 func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
-		GroupID   uuid.UUID `json:"group_id"`
-		CreatedAt time.Time `json:"created_at"`
+		GroupID uuid.UUID `json:"group_id"`
+		Before  time.Time `json:"before"`
 	}
 
 	type response struct {
@@ -591,7 +591,7 @@ func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *
 		return
 	}
 
-	if params.CreatedAt.IsZero() {
+	if params.Before.IsZero() {
 		log.Printf("[/api/v1/message/group]: empty created at time")
 		utility.RespondWithError(w, http.StatusNotAcceptable, "empty created at time")
 		return
@@ -601,7 +601,7 @@ func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *
 	// if messages are not present in cache then hitting database
 	// fetching group messages with limit 10 sorted in ascending order by created_at
 	var messages []database.Message
-	messages = apiConfig.MessageCache.Get(params.GroupID.String(), params.CreatedAt)
+	messages = apiConfig.MessageCache.Get(params.GroupID.String(), params.Before)
 	if messages != nil {
 		utility.RespondWithJson(w, http.StatusOK, response{
 			Messages:    messages,
@@ -614,7 +614,7 @@ func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *
 			UUID:  params.GroupID,
 			Valid: true,
 		},
-		CreatedAt: params.CreatedAt,
+		CreatedAt: params.Before,
 	})
 	if err != nil {
 		log.Printf("[/api/v1/message/group]: error fetching messages for group %s: %v", params.GroupID, err)
