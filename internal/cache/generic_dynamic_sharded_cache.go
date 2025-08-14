@@ -156,12 +156,9 @@ func (dsc *DynamicShardedCache) Get(key string, createdAt time.Time) []database.
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
-	// checking if user is requesting group messages or one-to-one conversation
-	// for one-to-one conversation len(keys) = 2, fetching the conversation
-	// taking user ids of both involved users and creating a hash for the conversation
-	// using fnv 1-a then dividing this hash with current shard count and using this value
+	// key can be a group id or concatenated string of user ids of both users involved in the conversation
+	// hashing the key using fnv 1-a then dividing this hash with current shard count and using this value
 	// to fetch the target shard and using the raw hash value to access the conversation
-	// for group conversations only group id will be used to store the messages
 
 	shard := dsc.getShard(key)
 	shard.mutex.RLock()
