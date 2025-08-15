@@ -38,17 +38,26 @@ type GroupMessageReceived struct {
 	ReceivedAt    time.Time
 }
 
+type GroupMessageReceiver struct {
+	MessageID      uuid.UUID
+	MemberID       uuid.UUID
+	GroupID        uuid.UUID
+	IsAllowedToSee bool
+}
+
 type Message struct {
-	ID          uuid.UUID
-	Description string
-	SenderID    uuid.UUID
-	RecieverID  uuid.NullUUID
-	GroupID     uuid.NullUUID
-	Sent        bool
-	Recieved    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Read        bool
+	ID                     uuid.UUID
+	Description            string
+	SenderID               uuid.UUID
+	RecieverID             uuid.NullUUID
+	GroupID                uuid.NullUUID
+	Sent                   bool
+	Recieved               bool
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	Read                   bool
+	IsSenderAllowedToSee   bool
+	IsReceiverAllowedToSee bool
 }
 
 type RefreshToken struct {
