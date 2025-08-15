@@ -13,7 +13,7 @@ import (
 )
 
 // endpoint: /api/v1/groups/create
-func (apiConfig *ApiConfig) CreateGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleCreateGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		Name string `json:"name"`
 	}
@@ -72,7 +72,7 @@ func (apiConfig *ApiConfig) CreateGroup(w http.ResponseWriter, r *http.Request, 
 }
 
 // endpoint: /api/v1/group/update
-func (apiConfig *ApiConfig) UpdateGroupName(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleUpdateGroupName(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
 		Name    string    `json:"name"`
@@ -136,7 +136,7 @@ func (apiConfig *ApiConfig) UpdateGroupName(w http.ResponseWriter, r *http.Reque
 }
 
 // endpoint: /api/v1/group/remove
-func (apiConfig *ApiConfig) RemoveGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleRemoveGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
 	}
@@ -181,7 +181,7 @@ func (apiConfig *ApiConfig) RemoveGroup(w http.ResponseWriter, r *http.Request, 
 }
 
 // endpoint: /api/v1/group/add/user
-func (apiConfig *ApiConfig) AddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
 		GroupID uuid.UUID `json:"group_id"`
@@ -230,6 +230,12 @@ func (apiConfig *ApiConfig) AddUserToGroup(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// if user was previously part of the group then mark is_receiver_allowed_to_see = true
+	apiConfig.DB.MarkIsAllowedToSeeAsTrueForSpecificGroupMember(r.Context(), database.MarkIsAllowedToSeeAsTrueForSpecificGroupMemberParams{
+		MemberID: params.UserID,
+		GroupID:  params.GroupID,
+	})
+
 	// emit group event ADD_USER_TO_GROUP
 	groupEvent := eventhandlers.GroupEvent{}
 	groupEvent.Name = eventhandlers.ADD_USER_TO_GROUP
@@ -271,7 +277,7 @@ func (apiConfig *ApiConfig) AddUserToGroup(w http.ResponseWriter, r *http.Reques
 }
 
 // endpoint: /api/v1/group/remove/user
-func (apiConfig *ApiConfig) RemoveUserFromGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleRemoveUserFromGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
 		GroupID uuid.UUID `json:"group_id"`
@@ -361,7 +367,7 @@ func (apiConfig *ApiConfig) RemoveUserFromGroup(w http.ResponseWriter, r *http.R
 }
 
 // endpoint: /api/v1/group/mark/user/admin
-func (apiConfig *ApiConfig) MakeUserAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleMakeUserAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
 		UserID  uuid.UUID `json:"user_id"`
@@ -451,7 +457,7 @@ func (apiConfig *ApiConfig) MakeUserAdmin(w http.ResponseWriter, r *http.Request
 }
 
 // endpoint: /api/v1/group/remove/user/admin
-func (apiConfig *ApiConfig) RemoveUserFromAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+func (apiConfig *ApiConfig) HandleRemoveUserFromAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
 		GroupID uuid.UUID `json:"group_id"`
