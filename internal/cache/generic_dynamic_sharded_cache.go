@@ -224,7 +224,15 @@ func (dsc *DynamicShardedCache) RemoveMessage(key string, messageID uuid.UUID) {
 	}
 }
 
-func (dsc *DynamicShardedCache) Update(key string, messageID uuid.UUID, description string, received bool, read bool, updatedAt time.Time) {
+func (dsc *DynamicShardedCache) Update(
+	key string,
+	messageID uuid.UUID,
+	description string,
+	received bool,
+	read bool,
+	isReceiverAllowedToSee bool,
+	updatedAt time.Time) {
+
 	dsc.resizeMutex.RLock()
 	defer dsc.resizeMutex.RUnlock()
 
@@ -247,6 +255,9 @@ func (dsc *DynamicShardedCache) Update(key string, messageID uuid.UUID, descript
 			}
 			if !message.Read && read {
 				message.Read = true
+			}
+			if !message.IsReceiverAllowedToSee && isReceiverAllowedToSee {
+				message.IsReceiverAllowedToSee = true
 			}
 			break
 		}
