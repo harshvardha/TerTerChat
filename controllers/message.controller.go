@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,13 +39,13 @@ func (apiConfig *ApiConfig) HandleCreateNewMessage(w http.ResponseWriter, r *htt
 	}
 
 	// validating message body
-	if (params.ReceiverID == "" && params.GroupID == "") || (len(params.ReceiverID) > 0 && len(params.GroupID) > 0) {
+	if len(params.ReceiverID) == 0 && len(params.GroupID) == 0 {
 		log.Printf("[/api/v1/message/create]: invalid message body")
 		utility.RespondWithError(w, http.StatusNotAcceptable, "invalid message body")
 		return
 	}
 
-	if params.Description == "" {
+	if len(params.Description) == 0 {
 		log.Printf("[/api/v1/message/create]: empty message description")
 		utility.RespondWithError(w, http.StatusNotAcceptable, "empty message description")
 		return
@@ -66,9 +66,7 @@ func (apiConfig *ApiConfig) HandleCreateNewMessage(w http.ResponseWriter, r *htt
 			UUID:  receiverId,
 			Valid: true,
 		}
-	}
-
-	if len(params.GroupID) > 0 {
+	} else if len(params.GroupID) > 0 {
 		groupId, err := uuid.Parse(params.GroupID)
 		if err != nil {
 			log.Printf("[/api/v1/message/create]: error parsing the message group id: %v", err)
@@ -81,6 +79,8 @@ func (apiConfig *ApiConfig) HandleCreateNewMessage(w http.ResponseWriter, r *htt
 		}
 	}
 
+	message.SenderID = userID
+	message.Description = params.Description
 	message.Sent = true
 
 	newMessage, err := apiConfig.DB.CreateMessage(r.Context(), message)
@@ -105,14 +105,14 @@ func (apiConfig *ApiConfig) HandleCreateNewMessage(w http.ResponseWriter, r *htt
 
 	// adding the receivers contact number
 	if newMessage.GroupID.UUID != uuid.Nil {
-		groupMembersID, err := apiConfig.DB.GetGroupMembersPhonenumbers(r.Context(), newMessage.GroupID.UUID)
+		groupMembersPhonenumbers, err := apiConfig.DB.GetGroupMembersPhonenumbers(r.Context(), newMessage.GroupID.UUID)
 		if err != nil {
 			log.Printf("[/api/v1/message/create]: error fetching group members id: %v", err)
 			utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		messageEvent.Phonenumbers = groupMembersID
+		messageEvent.Phonenumbers = groupMembersPhonenumbers
 	}
 
 	if newMessage.RecieverID.UUID != uuid.Nil {
@@ -219,6 +219,7 @@ func (apiConfig *ApiConfig) HandleUpdateMessage(w http.ResponseWriter, r *http.R
 			updatedMessage.Description,
 			updatedMessage.Recieved,
 			updatedMessage.Read,
+			updatedMessage.IsReceiverAllowedToSee,
 			updatedMessage.UpdatedAt,
 		)
 	} else {
@@ -228,6 +229,7 @@ func (apiConfig *ApiConfig) HandleUpdateMessage(w http.ResponseWriter, r *http.R
 			updatedMessage.Description,
 			updatedMessage.Recieved,
 			updatedMessage.Read,
+			updatedMessage.IsReceiverAllowedToSee,
 			updatedMessage.UpdatedAt,
 		)
 	}
@@ -296,9 +298,8 @@ func (apiConfig *ApiConfig) HandleUpdateMessage(w http.ResponseWriter, r *http.R
 // endpoint: /api/v1/message/delete
 func (apiConfig *ApiConfig) HandleDeleteMessage(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
-		ID         uuid.UUID `json:"id"`
-		ReceiverID uuid.UUID `json:"receiver_id"`
-		GroupID    uuid.UUID `json:"group_id"`
+		ID      uuid.UUID `json:"id"`
+		GroupID uuid.UUID `json:"group_id"`
 	}
 
 	// extracting request body
@@ -318,38 +319,101 @@ func (apiConfig *ApiConfig) HandleDeleteMessage(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if params.ReceiverID == uuid.Nil && params.GroupID == uuid.Nil {
-		log.Printf("[/api/v1/message/delete]: empty receiver id and group id")
-		utility.RespondWithError(w, http.StatusNotAcceptable, "empty receiver id and group id")
-		return
-	}
-
-	// deleting message
-	deleteMessageParams := database.RemoveMessageParams{
-		ID:       params.ID,
-		SenderID: userID,
-	}
-	if params.ReceiverID != uuid.Nil {
-		deleteMessageParams.RecieverID.UUID = params.ReceiverID
-		deleteMessageParams.RecieverID.Valid = true
-	}
-	if params.GroupID != uuid.Nil {
-		deleteMessageParams.GroupID.UUID = params.GroupID
-		deleteMessageParams.GroupID.Valid = true
-	}
-
-	deletedMessage, err := apiConfig.DB.RemoveMessage(r.Context(), deleteMessageParams)
+	// if requesting user is sender of the message then both is_sender_allowed_to_see
+	// and is_receiver_allowed_to_see will be marked as false
+	// and if requesting user is receiver of the message then only is_receiver_allowed_to_see
+	// will be marked as false
+	message, err := apiConfig.DB.GetMessageSenderReceiverAndGroupID(r.Context(), params.ID)
 	if err != nil {
-		log.Printf("[/api/v1/message/delete]: error deleting message: %v", err)
-		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
+		log.Printf("[/api/v1/message/delete]: error fetching the message: %v", err)
+		utility.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
+	}
+
+	// if params.GroupID == nil then the message is not a group message, it belongs to one to one conversation
+	// between two users.
+	if params.GroupID == uuid.Nil {
+		// if message.SenderID == userID then both sender and receiver are not allowed to see the message
+		// if message.SenderID == message.Receiver then only the receiver will not be allowed to see the message
+		if message.SenderID == userID {
+			if err = apiConfig.DB.MarkIsSenderAllowedToSeeFalse(r.Context(), database.MarkIsSenderAllowedToSeeFalseParams{
+				SenderID:   userID,
+				RecieverID: message.RecieverID,
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking sender to see message as false: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if err = apiConfig.DB.MarkIsReceiverAllowedToSeeFalse(r.Context(), database.MarkIsReceiverAllowedToSeeFalseParams{
+				SenderID:   userID,
+				RecieverID: message.RecieverID,
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking receiver to see message as false: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		} else if message.RecieverID.UUID == userID {
+			if err = apiConfig.DB.MarkIsReceiverAllowedToSeeFalse(r.Context(), database.MarkIsReceiverAllowedToSeeFalseParams{
+				SenderID: message.SenderID,
+				RecieverID: uuid.NullUUID{
+					UUID:  userID,
+					Valid: true,
+				},
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking receiver to see message as false: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	} else if message.GroupID.UUID == params.GroupID {
+		// if the userID == message.SenderID then mark isAllowedToSee = false for all the receivers in the group
+		// if userID != message.SenderID then mark isAllowedToSee = false for that specific receiver
+		if message.SenderID == userID {
+			if err = apiConfig.DB.MarkIsSenderAllowedToSeeFalse(r.Context(), database.MarkIsSenderAllowedToSeeFalseParams{
+				SenderID: userID,
+				RecieverID: uuid.NullUUID{
+					UUID:  uuid.Nil,
+					Valid: false,
+				},
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking sender to see group message as false: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+
+			// marking isAllowedToSee = false for all the group members who are receivers of this message
+			if err = apiConfig.DB.MarkIsAllowedToSeeAsFalseForGroupMemeberReceivers(r.Context(), database.MarkIsAllowedToSeeAsFalseForGroupMemeberReceiversParams{
+				MessageID: params.ID,
+				GroupID:   params.GroupID,
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking allowed to see as false for group members who are recivers: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		} else {
+			// requesting user is the receiver of this group message
+			// so only marking isAllowedToSee = false for this group member
+			if err = apiConfig.DB.MarkIsAllowedToSeeAsFalseForSpecificGroupMemeber(r.Context(), database.MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberParams{
+				MessageID: params.ID,
+				GroupID:   params.GroupID,
+				MemberID:  userID,
+			}); err != nil {
+				log.Printf("[/api/v1/message/delete]: error marking allowed to see as false for requesting group member receiver: %v", err)
+				utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
 	}
 
 	// removing message from cache
 	if params.GroupID != uuid.Nil {
-		apiConfig.MessageCache.RemoveMessage(params.GroupID.String(), params.ID)
-	} else {
-		apiConfig.MessageCache.RemoveMessage(userID.String()+params.ReceiverID.String(), params.ID)
+		if message.SenderID == userID {
+			apiConfig.MessageCache.RemoveMessage(params.GroupID.String(), params.ID)
+		}
+	} else if message.SenderID == userID {
+		apiConfig.MessageCache.RemoveMessage(userID.String()+message.RecieverID.UUID.String(), params.ID)
+	} else if message.RecieverID.UUID == userID {
+		apiConfig.MessageCache.Update(message.SenderID.String()+userID.String(), params.ID, "", true, true, false, time.Now())
 	}
 
 	// creating delete_message event
@@ -369,8 +433,17 @@ func (apiConfig *ApiConfig) HandleDeleteMessage(w http.ResponseWriter, r *http.R
 	}
 
 	// fetching contact number of receiver
-	if params.ReceiverID != uuid.Nil {
-		phonenumber, err := apiConfig.DB.GetUserPhonenumberByID(r.Context(), params.ReceiverID)
+	if message.SenderID == userID {
+		phonenumber, err := apiConfig.DB.GetUserPhonenumberByID(r.Context(), message.RecieverID.UUID)
+		if err != nil {
+			log.Printf("[/api/v1/message/delete]: error fetching receiver contact: %v", err)
+			utility.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		messageEvent.Phonenumbers = []string{phonenumber}
+	} else if message.RecieverID.UUID == userID {
+		phonenumber, err := apiConfig.DB.GetUserPhonenumberByID(r.Context(), userID)
 		if err != nil {
 			log.Printf("[/api/v1/message/delete]: error fetching receiver contact: %v", err)
 			utility.RespondWithError(w, http.StatusBadRequest, err.Error())
@@ -383,8 +456,8 @@ func (apiConfig *ApiConfig) HandleDeleteMessage(w http.ResponseWriter, r *http.R
 	// adding message to messageEvent
 	messageEvent.Message = eventhandlers.Message{
 		ID:       params.ID,
-		SenderID: deletedMessage.SenderID,
-		GroupID:  deletedMessage.GroupID.UUID,
+		SenderID: message.SenderID,
+		GroupID:  params.GroupID,
 	}
 
 	// adding notification service
@@ -449,33 +522,30 @@ func (apiConfig *ApiConfig) HandleDeleteConversation(w http.ResponseWriter, r *h
 		return
 	}
 
-	// removing all the messages where sender = userID and receiver = ReceiverID
-	err = apiConfig.DB.RemoveMessages(r.Context(), database.RemoveMessagesParams{
+	// marking is_sender_allowed_to_see as false where the requesting user is sender
+	// and marking is_receiver_allowed_to_see as false where the requesting user is receiver
+	// in all the messages between requesting user and the user whose receiverID is sent
+	// through request body
+	if err = apiConfig.DB.MarkIsSenderAllowedToSeeFalse(r.Context(), database.MarkIsSenderAllowedToSeeFalseParams{
 		SenderID:   userID,
 		RecieverID: params.ReceiverID,
-	})
-	if err != nil {
-		log.Printf("[/api/v1/message/conversation/delete]: error deleting conversations: %v", err)
-		utility.RespondWithError(w, http.StatusNotFound, fmt.Sprintf("conversations not found for sender %s and receiver %s", userID.String(), params.ReceiverID.UUID.String()))
+	}); err != nil {
+		log.Printf("[/api/v1/message/conversation/delete]: error marking sender allowed as false: %v", err)
+		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// removing all the messages where sender = ReceiverID and receiver = userID
-	err = apiConfig.DB.RemoveMessages(r.Context(), database.RemoveMessagesParams{
+	if err = apiConfig.DB.MarkIsReceiverAllowedToSeeFalse(r.Context(), database.MarkIsReceiverAllowedToSeeFalseParams{
 		SenderID: params.ReceiverID.UUID,
 		RecieverID: uuid.NullUUID{
 			UUID:  userID,
 			Valid: true,
 		},
-	})
-	if err != nil {
-		log.Printf("[/api/v1/message/conversation/delete]: error deleting conversations: %v", err)
-		utility.RespondWithError(w, http.StatusNotFound, fmt.Sprintf("conversations not found for sender %s and receiver %s", params.ReceiverID.UUID.String(), userID.String()))
+	}); err != nil {
+		log.Printf("[/api/v1/message/conversation/delete]: error marking receiver allowed as false: %v", err)
+		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	// removing messages from cache for the users involved in the conversation
-	apiConfig.MessageCache.Remove(userID.String() + params.ReceiverID.UUID.String())
 
 	utility.RespondWithJson(w, http.StatusOK, EmptyResponse{
 		AccessToken: newAccessToken,
@@ -523,6 +593,16 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 	var messages []database.Message
 	messages = apiConfig.MessageCache.Get(userID.String()+params.ReceiverID.UUID.String(), params.Before)
 	if messages != nil {
+		// if requesting user with userID is sender of message and isSenderAllowedToSee = false
+		// or if requesting user with userID is receiver of message and isReceiverAllowedToSee = false
+		// then message will be excluded from response body
+		for index, value := range messages {
+			if (value.SenderID == userID && !value.IsSenderAllowedToSee) ||
+				(value.RecieverID.UUID == userID && !value.IsReceiverAllowedToSee) {
+				messages = slices.Delete(messages, index, index+1)
+			}
+		}
+
 		utility.RespondWithJson(w, http.StatusOK, response{
 			Messages:    messages,
 			AccessToken: newAccessToken,
@@ -530,6 +610,7 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 	}
 
 	// fetching messages where senderID = userID and receiverID = ReceiverID
+	// if the IsSenderAllowedToSee = false then message will be excluded from final response body data
 	messages, err = apiConfig.DB.GetAllMessages(r.Context(), database.GetAllMessagesParams{
 		SenderID:   userID,
 		RecieverID: params.ReceiverID,
@@ -540,8 +621,14 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 		utility.RespondWithError(w, http.StatusNotFound, "no conversations found")
 		return
 	}
+	for index, value := range messages {
+		if !value.IsSenderAllowedToSee {
+			messages = slices.Delete(messages, index, index+1)
+		}
+	}
 
 	// fetching messages where senderID = ReceiverID and receiverID = userID
+	// if the IsReceiverAllowedToSee = false then message will be excluded from final response body data
 	messages_2, err := apiConfig.DB.GetAllMessages(r.Context(), database.GetAllMessagesParams{
 		SenderID: params.ReceiverID.UUID,
 		RecieverID: uuid.NullUUID{
@@ -554,6 +641,11 @@ func (apiConfig *ApiConfig) HandleGetConversation(w http.ResponseWriter, r *http
 		log.Printf("[/api/v1/message/conversation]: error fetching messages: %v", err)
 		utility.RespondWithError(w, http.StatusNotFound, "no conversations found")
 		return
+	}
+	for index, value := range messages_2 {
+		if !value.IsReceiverAllowedToSee {
+			messages_2 = slices.Delete(messages_2, index, index+1)
+		}
 	}
 
 	utility.RespondWithJson(w, http.StatusOK, response{
@@ -603,6 +695,21 @@ func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *
 	var messages []database.Message
 	messages = apiConfig.MessageCache.Get(params.GroupID.String(), params.Before)
 	if messages != nil {
+		// for the group messages where the requesting user is receiver
+		// we have to check if the user isAllowedToSee the message
+		// if not then exclude that message
+		for index, value := range messages {
+			if value.SenderID != userID {
+				if isAllowedToSee, err := apiConfig.DB.IsGroupMemberAllowedToSeeMessage(r.Context(), database.IsGroupMemberAllowedToSeeMessageParams{
+					MessageID: value.ID,
+					GroupID:   params.GroupID,
+					MemberID:  userID,
+				}); err == nil && !isAllowedToSee {
+					messages = slices.Delete(messages, index, index+1)
+				}
+			}
+		}
+
 		utility.RespondWithJson(w, http.StatusOK, response{
 			Messages:    messages,
 			AccessToken: newAccessToken,
@@ -620,6 +727,21 @@ func (apiConfig *ApiConfig) HandleGetAllGroupMessages(w http.ResponseWriter, r *
 		log.Printf("[/api/v1/message/group]: error fetching messages for group %s: %v", params.GroupID, err)
 		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	// for the group messages where the requesting user is receiver
+	// we have to check if the user isAllowedToSee the message
+	// if not then exclude that message
+	for index, value := range messages {
+		if value.SenderID != userID {
+			if isAllowedToSee, err := apiConfig.DB.IsGroupMemberAllowedToSeeMessage(r.Context(), database.IsGroupMemberAllowedToSeeMessageParams{
+				MessageID: value.ID,
+				GroupID:   params.GroupID,
+				MemberID:  userID,
+			}); err == nil && !isAllowedToSee {
+				messages = slices.Delete(messages, index, index+1)
+			}
+		}
 	}
 
 	utility.RespondWithJson(w, http.StatusOK, response{
@@ -654,7 +776,7 @@ func (apiConfig *ApiConfig) HandleMarkMessageReceived(w http.ResponseWriter, r *
 	}
 
 	// updating cache
-	apiConfig.MessageCache.Update(params.SenderID.String()+userID.String(), params.MessageID, "", true, false, updatedAt)
+	apiConfig.MessageCache.Update(params.SenderID.String()+userID.String(), params.MessageID, "", true, false, true, updatedAt)
 
 	// creating message event
 	messageEvent := eventhandlers.MessageEvent{}
@@ -715,7 +837,7 @@ func (apiConfig *ApiConfig) HandleMarkMessageRead(w http.ResponseWriter, r *http
 	}
 
 	// updating cache
-	apiConfig.MessageCache.Update(params.SenderID.String()+userID.String(), params.MessageID, "", true, true, updatedAt)
+	apiConfig.MessageCache.Update(params.SenderID.String()+userID.String(), params.MessageID, "", true, true, true, updatedAt)
 
 	// creating MESSAGE_RECEIVED event
 	messageEvent := eventhandlers.MessageEvent{}
@@ -810,7 +932,7 @@ func (apiConfig *ApiConfig) HandleMarkGroupMessageReceived(w http.ResponseWriter
 		}
 
 		// updating cache
-		apiConfig.MessageCache.Update(params.GroupID.String(), params.MessageID, "", true, false, updatedAt)
+		apiConfig.MessageCache.Update(params.GroupID.String(), params.MessageID, "", true, false, true, updatedAt)
 
 		// emitting GROUP_MESSAGE_RECEIVED event
 		messageEvent := eventhandlers.MessageEvent{}
@@ -906,7 +1028,7 @@ func (apiConfig *ApiConfig) HandleMarkGroupMessageRead(w http.ResponseWriter, r 
 		}
 
 		// updating cache
-		apiConfig.MessageCache.Update(params.GroupID.String(), params.MessageID, "", true, true, updatedAt)
+		apiConfig.MessageCache.Update(params.GroupID.String(), params.MessageID, "", true, true, true, updatedAt)
 
 		// creating message event
 		messageEvent := eventhandlers.MessageEvent{}
