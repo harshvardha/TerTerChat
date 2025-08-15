@@ -11,14 +11,16 @@ returning *;
 
 -- name: UpdateMessage :one
 update messages set description = $1, updated_at = NOW() where id = $2 and sender_id = $3 and group_id = $4
-returning description, sender_id, reciever_id, group_id, sent, recieved, read, created_at, updated_at;
+returning description, sender_id, reciever_id, group_id, sent, recieved, read, is_receiver_allowed_to_see, created_at, updated_at;
 
--- name: RemoveMessage :one
-delete from messages where id = $1 and sender_id = $2 and reciever_id = $3 and group_id = $4
-returning sender_id, group_id;
+-- name: GetMessageSenderReceiverAndGroupID :one
+select sender_id, reciever_id, group_id from messages where id = $1;
 
--- name: RemoveMessages :exec
-delete from messages where sender_id = $1 and reciever_id = $2;
+-- name: MarkIsSenderAllowedToSeeFalse :exec
+update messages set is_sender_allowed_to_see = false where sender_id = $1 and reciever_id = $2;
+
+-- name: MarkIsReceiverAllowedToSeeFalse :exec
+update messages set is_receiver_allowed_to_see = false where sender_id = $1 and reciever_id = $2;
 
 -- name: GetAllMessages :many
 select * from messages where sender_id = $1 and reciever_id = $2 and created_at < $3 order by created_at limit 10;
@@ -63,3 +65,25 @@ select distinct messages.reciever_id as reciever_id, users.username as username 
 
 -- name: GetAllGroupConversations :many
 select distinct messages.group_id as group_id, groups.name as group_name from messages join groups on messages.group_id = groups.id where messages.sender_id = $1;
+
+-- name: AddReceiverToGroupMessage :exec
+insert into group_message_receivers(
+    message_id, member_id, group_id
+) values(
+    $1, $2, $3
+);
+
+-- name: MarkIsAllowedToSeeAsFalseForGroupMemeberReceivers :exec
+update group_message_receivers set is_allowed_to_see = false where message_id = $1 and group_id = $2;
+
+-- name: MarkIsAllowedToSeeAsFalseForSpecificGroupMemeber :exec
+update group_message_receivers set is_allowed_to_see = false where message_id = $1 and group_id = $2 and member_id = $3;
+
+-- name: MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeaves :exec
+update group_message_receivers set is_allowed_to_see = false where group_id = $1 and member_id = $2;
+
+-- name: MarkIsAllowedToSeeAsTrueForSpecificGroupMember :exec
+update group_message_receivers set is_allowed_to_see = true where group_id = $1 and member_id = $2;
+
+-- name: IsGroupMemberAllowedToSeeMessage :one
+select is_allowed_to_see from group_message_receivers where message_id = $1 and group_id = $2 and member_id = $3;

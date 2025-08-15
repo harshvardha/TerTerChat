@@ -12,6 +12,25 @@ import (
 	"github.com/google/uuid"
 )
 
+const addReceiverToGroupMessage = `-- name: AddReceiverToGroupMessage :exec
+insert into group_message_receivers(
+    message_id, member_id, group_id
+) values(
+    $1, $2, $3
+)
+`
+
+type AddReceiverToGroupMessageParams struct {
+	MessageID uuid.UUID
+	MemberID  uuid.UUID
+	GroupID   uuid.UUID
+}
+
+func (q *Queries) AddReceiverToGroupMessage(ctx context.Context, arg AddReceiverToGroupMessageParams) error {
+	_, err := q.db.ExecContext(ctx, addReceiverToGroupMessage, arg.MessageID, arg.MemberID, arg.GroupID)
+	return err
+}
+
 const countOfGroupMembersWhoReadMessage = `-- name: CountOfGroupMembersWhoReadMessage :one
 select count(*) from group_message_read where message_id = $1 and group_member_id = $2 and group_id = $3
 `
@@ -55,7 +74,7 @@ values(
     gen_random_uuid(),
     $1, $2, $3, $4, $5, NOW(), NOW()
 )
-returning id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read
+returning id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read, is_sender_allowed_to_see, is_receiver_allowed_to_see
 `
 
 type CreateMessageParams struct {
@@ -86,6 +105,8 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Read,
+		&i.IsSenderAllowedToSee,
+		&i.IsReceiverAllowedToSee,
 	)
 	return i, err
 }
@@ -123,7 +144,7 @@ func (q *Queries) GetAllGroupConversations(ctx context.Context, senderID uuid.UU
 }
 
 const getAllGroupMessages = `-- name: GetAllGroupMessages :many
-select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read from messages where group_id = $1 and created_at < $2 order by created_at limit 10
+select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read, is_sender_allowed_to_see, is_receiver_allowed_to_see from messages where group_id = $1 and created_at < $2 order by created_at limit 10
 `
 
 type GetAllGroupMessagesParams struct {
@@ -151,6 +172,8 @@ func (q *Queries) GetAllGroupMessages(ctx context.Context, arg GetAllGroupMessag
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Read,
+			&i.IsSenderAllowedToSee,
+			&i.IsReceiverAllowedToSee,
 		); err != nil {
 			return nil, err
 		}
@@ -166,7 +189,7 @@ func (q *Queries) GetAllGroupMessages(ctx context.Context, arg GetAllGroupMessag
 }
 
 const getAllMessages = `-- name: GetAllMessages :many
-select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read from messages where sender_id = $1 and reciever_id = $2 and created_at < $3 order by created_at limit 10
+select id, description, sender_id, reciever_id, group_id, sent, recieved, created_at, updated_at, read, is_sender_allowed_to_see, is_receiver_allowed_to_see from messages where sender_id = $1 and reciever_id = $2 and created_at < $3 order by created_at limit 10
 `
 
 type GetAllMessagesParams struct {
@@ -195,6 +218,8 @@ func (q *Queries) GetAllMessages(ctx context.Context, arg GetAllMessagesParams) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Read,
+			&i.IsSenderAllowedToSee,
+			&i.IsReceiverAllowedToSee,
 		); err != nil {
 			return nil, err
 		}
@@ -316,6 +341,40 @@ func (q *Queries) GetLatestMessagesByRecieverID(ctx context.Context, arg GetLate
 	return items, nil
 }
 
+const getMessageSenderReceiverAndGroupID = `-- name: GetMessageSenderReceiverAndGroupID :one
+select sender_id, reciever_id, group_id from messages where id = $1
+`
+
+type GetMessageSenderReceiverAndGroupIDRow struct {
+	SenderID   uuid.UUID
+	RecieverID uuid.NullUUID
+	GroupID    uuid.NullUUID
+}
+
+func (q *Queries) GetMessageSenderReceiverAndGroupID(ctx context.Context, id uuid.UUID) (GetMessageSenderReceiverAndGroupIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getMessageSenderReceiverAndGroupID, id)
+	var i GetMessageSenderReceiverAndGroupIDRow
+	err := row.Scan(&i.SenderID, &i.RecieverID, &i.GroupID)
+	return i, err
+}
+
+const isGroupMemberAllowedToSeeMessage = `-- name: IsGroupMemberAllowedToSeeMessage :one
+select is_allowed_to_see from group_message_receivers where message_id = $1 and group_id = $2 and member_id = $3
+`
+
+type IsGroupMemberAllowedToSeeMessageParams struct {
+	MessageID uuid.UUID
+	GroupID   uuid.UUID
+	MemberID  uuid.UUID
+}
+
+func (q *Queries) IsGroupMemberAllowedToSeeMessage(ctx context.Context, arg IsGroupMemberAllowedToSeeMessageParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isGroupMemberAllowedToSeeMessage, arg.MessageID, arg.GroupID, arg.MemberID)
+	var is_allowed_to_see bool
+	err := row.Scan(&is_allowed_to_see)
+	return is_allowed_to_see, err
+}
+
 const markGroupMessageRead = `-- name: MarkGroupMessageRead :exec
 insert into group_message_read(message_id, group_member_id, group_id, read_at)
 values($1, $2, $3, NOW())
@@ -348,6 +407,91 @@ func (q *Queries) MarkGroupMessageReceived(ctx context.Context, arg MarkGroupMes
 	return err
 }
 
+const markIsAllowedToSeeAsFalseForGroupMemeberReceivers = `-- name: MarkIsAllowedToSeeAsFalseForGroupMemeberReceivers :exec
+update group_message_receivers set is_allowed_to_see = false where message_id = $1 and group_id = $2
+`
+
+type MarkIsAllowedToSeeAsFalseForGroupMemeberReceiversParams struct {
+	MessageID uuid.UUID
+	GroupID   uuid.UUID
+}
+
+func (q *Queries) MarkIsAllowedToSeeAsFalseForGroupMemeberReceivers(ctx context.Context, arg MarkIsAllowedToSeeAsFalseForGroupMemeberReceiversParams) error {
+	_, err := q.db.ExecContext(ctx, markIsAllowedToSeeAsFalseForGroupMemeberReceivers, arg.MessageID, arg.GroupID)
+	return err
+}
+
+const markIsAllowedToSeeAsFalseForSpecificGroupMemeber = `-- name: MarkIsAllowedToSeeAsFalseForSpecificGroupMemeber :exec
+update group_message_receivers set is_allowed_to_see = false where message_id = $1 and group_id = $2 and member_id = $3
+`
+
+type MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberParams struct {
+	MessageID uuid.UUID
+	GroupID   uuid.UUID
+	MemberID  uuid.UUID
+}
+
+func (q *Queries) MarkIsAllowedToSeeAsFalseForSpecificGroupMemeber(ctx context.Context, arg MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberParams) error {
+	_, err := q.db.ExecContext(ctx, markIsAllowedToSeeAsFalseForSpecificGroupMemeber, arg.MessageID, arg.GroupID, arg.MemberID)
+	return err
+}
+
+const markIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeaves = `-- name: MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeaves :exec
+update group_message_receivers set is_allowed_to_see = false where group_id = $1 and member_id = $2
+`
+
+type MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeavesParams struct {
+	GroupID  uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeaves(ctx context.Context, arg MarkIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeavesParams) error {
+	_, err := q.db.ExecContext(ctx, markIsAllowedToSeeAsFalseForSpecificGroupMemeberWhoLeaves, arg.GroupID, arg.MemberID)
+	return err
+}
+
+const markIsAllowedToSeeAsTrueForSpecificGroupMember = `-- name: MarkIsAllowedToSeeAsTrueForSpecificGroupMember :exec
+update group_message_receivers set is_allowed_to_see = true where group_id = $1 and member_id = $2
+`
+
+type MarkIsAllowedToSeeAsTrueForSpecificGroupMemberParams struct {
+	GroupID  uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) MarkIsAllowedToSeeAsTrueForSpecificGroupMember(ctx context.Context, arg MarkIsAllowedToSeeAsTrueForSpecificGroupMemberParams) error {
+	_, err := q.db.ExecContext(ctx, markIsAllowedToSeeAsTrueForSpecificGroupMember, arg.GroupID, arg.MemberID)
+	return err
+}
+
+const markIsReceiverAllowedToSeeFalse = `-- name: MarkIsReceiverAllowedToSeeFalse :exec
+update messages set is_receiver_allowed_to_see = false where sender_id = $1 and reciever_id = $2
+`
+
+type MarkIsReceiverAllowedToSeeFalseParams struct {
+	SenderID   uuid.UUID
+	RecieverID uuid.NullUUID
+}
+
+func (q *Queries) MarkIsReceiverAllowedToSeeFalse(ctx context.Context, arg MarkIsReceiverAllowedToSeeFalseParams) error {
+	_, err := q.db.ExecContext(ctx, markIsReceiverAllowedToSeeFalse, arg.SenderID, arg.RecieverID)
+	return err
+}
+
+const markIsSenderAllowedToSeeFalse = `-- name: MarkIsSenderAllowedToSeeFalse :exec
+update messages set is_sender_allowed_to_see = false where sender_id = $1 and reciever_id = $2
+`
+
+type MarkIsSenderAllowedToSeeFalseParams struct {
+	SenderID   uuid.UUID
+	RecieverID uuid.NullUUID
+}
+
+func (q *Queries) MarkIsSenderAllowedToSeeFalse(ctx context.Context, arg MarkIsSenderAllowedToSeeFalseParams) error {
+	_, err := q.db.ExecContext(ctx, markIsSenderAllowedToSeeFalse, arg.SenderID, arg.RecieverID)
+	return err
+}
+
 const markMessageRead = `-- name: MarkMessageRead :one
 update messages set read = true and updated_at = NOW() where id = $1
 returning updated_at
@@ -372,52 +516,9 @@ func (q *Queries) MarkMessageReceived(ctx context.Context, id uuid.UUID) (time.T
 	return updated_at, err
 }
 
-const removeMessage = `-- name: RemoveMessage :one
-delete from messages where id = $1 and sender_id = $2 and reciever_id = $3 and group_id = $4
-returning sender_id, group_id
-`
-
-type RemoveMessageParams struct {
-	ID         uuid.UUID
-	SenderID   uuid.UUID
-	RecieverID uuid.NullUUID
-	GroupID    uuid.NullUUID
-}
-
-type RemoveMessageRow struct {
-	SenderID uuid.UUID
-	GroupID  uuid.NullUUID
-}
-
-func (q *Queries) RemoveMessage(ctx context.Context, arg RemoveMessageParams) (RemoveMessageRow, error) {
-	row := q.db.QueryRowContext(ctx, removeMessage,
-		arg.ID,
-		arg.SenderID,
-		arg.RecieverID,
-		arg.GroupID,
-	)
-	var i RemoveMessageRow
-	err := row.Scan(&i.SenderID, &i.GroupID)
-	return i, err
-}
-
-const removeMessages = `-- name: RemoveMessages :exec
-delete from messages where sender_id = $1 and reciever_id = $2
-`
-
-type RemoveMessagesParams struct {
-	SenderID   uuid.UUID
-	RecieverID uuid.NullUUID
-}
-
-func (q *Queries) RemoveMessages(ctx context.Context, arg RemoveMessagesParams) error {
-	_, err := q.db.ExecContext(ctx, removeMessages, arg.SenderID, arg.RecieverID)
-	return err
-}
-
 const updateMessage = `-- name: UpdateMessage :one
 update messages set description = $1, updated_at = NOW() where id = $2 and sender_id = $3 and group_id = $4
-returning description, sender_id, reciever_id, group_id, sent, recieved, read, created_at, updated_at
+returning description, sender_id, reciever_id, group_id, sent, recieved, read, is_receiver_allowed_to_see, created_at, updated_at
 `
 
 type UpdateMessageParams struct {
@@ -428,15 +529,16 @@ type UpdateMessageParams struct {
 }
 
 type UpdateMessageRow struct {
-	Description string
-	SenderID    uuid.UUID
-	RecieverID  uuid.NullUUID
-	GroupID     uuid.NullUUID
-	Sent        bool
-	Recieved    bool
-	Read        bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Description            string
+	SenderID               uuid.UUID
+	RecieverID             uuid.NullUUID
+	GroupID                uuid.NullUUID
+	Sent                   bool
+	Recieved               bool
+	Read                   bool
+	IsReceiverAllowedToSee bool
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (UpdateMessageRow, error) {
@@ -455,6 +557,7 @@ func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (U
 		&i.Sent,
 		&i.Recieved,
 		&i.Read,
+		&i.IsReceiverAllowedToSee,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
