@@ -41,6 +41,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	router.HandleFunc("PUT /api/v1/message/update", middlewares.ValidateJWT(apiConfig.HandleUpdateMessage, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("DELETE /api/v1/message/delete", middlewares.ValidateJWT(apiConfig.HandleDeleteMessage, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("GET /api/v1/message/conversation", middlewares.ValidateJWT(apiConfig.HandleGetConversation, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("DELETE /api/v1/message/conversation/delete", middlewares.ValidateJWT(apiConfig.HandleDeleteConversation, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("GET /api/v1/message/conversations", middlewares.ValidateJWT(apiConfig.HandleGetAllConversations, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("GET /api/v1/message/group/all", middlewares.ValidateJWT(apiConfig.HandleGetAllGroupMessages, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("PUT /api/v1/message/mark/received", middlewares.ValidateJWT(apiConfig.HandleMarkMessageReceived, apiConfig.JwtSecret, apiConfig.DB))
