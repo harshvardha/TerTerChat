@@ -366,7 +366,7 @@ func (apiConfig *ApiConfig) HandleRemoveUserFromGroup(w http.ResponseWriter, r *
 	})
 }
 
-// endpoint: /api/v1/group/mark/user/admin
+// endpoint: /api/v1/group/make/user/admin
 func (apiConfig *ApiConfig) HandleMakeUserAdmin(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
