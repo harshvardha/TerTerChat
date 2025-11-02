@@ -49,6 +49,15 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	router.HandleFunc("PUT /api/v1/message/group/mark/received", middlewares.ValidateJWT(apiConfig.HandleMarkGroupMessageReceived, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("PUT /api/v1/message/group/mark/read", middlewares.ValidateJWT(apiConfig.HandleMarkGroupMessageRead, apiConfig.JwtSecret, apiConfig.DB))
 
+	// api endpoints for group
+	router.HandleFunc("POST /api/v1/group/create", middlewares.ValidateJWT(apiConfig.HandleCreateGroup, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/update", middlewares.ValidateJWT(apiConfig.HandleUpdateGroupName, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("DELETE /api/v1/group/remove", middlewares.ValidateJWT(apiConfig.HandleRemoveGroup, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/add/user", middlewares.ValidateJWT(apiConfig.HandleAddUserToGroup, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/remove/user", middlewares.ValidateJWT(apiConfig.HandleRemoveUserFromGroup, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/make/user/admin", middlewares.ValidateJWT(apiConfig.HandleMakeUserAdmin, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/remove/user/admin", middlewares.ValidateJWT(apiConfig.HandleRemoveUserFromAdmin, apiConfig.JwtSecret, apiConfig.DB))
+
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: router,
