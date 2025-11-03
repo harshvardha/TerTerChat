@@ -55,7 +55,7 @@ func StartRESTApiServer(port string, apiConfig *controllers.ApiConfig, quit <-ch
 	router.HandleFunc("DELETE /api/v1/group/remove", middlewares.ValidateJWT(apiConfig.HandleRemoveGroup, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("GET /api/v1/group/members", middlewares.ValidateJWT(apiConfig.HandleGetAllMembersOfGroup, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("PUT /api/v1/group/add/user", middlewares.ValidateJWT(apiConfig.HandleAddUserToGroup, apiConfig.JwtSecret, apiConfig.DB))
-	router.HandleFunc("PUT /api/v1/group/remove/user", middlewares.ValidateJWT(apiConfig.HandleRemoveUserFromGroup, apiConfig.JwtSecret, apiConfig.DB))
+	router.HandleFunc("PUT /api/v1/group/member/remove", middlewares.ValidateJWT(apiConfig.HandleRemoveUserFromGroup, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("PUT /api/v1/group/make/user/admin", middlewares.ValidateJWT(apiConfig.HandleMakeUserAdmin, apiConfig.JwtSecret, apiConfig.DB))
 	router.HandleFunc("PUT /api/v1/group/remove/user/admin", middlewares.ValidateJWT(apiConfig.HandleRemoveUserFromAdmin, apiConfig.JwtSecret, apiConfig.DB))
 
