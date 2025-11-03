@@ -191,7 +191,8 @@ func (apiConfig *ApiConfig) HandleGetAllMembersOfGroup(w http.ResponseWriter, r 
 	}
 
 	type response struct {
-		Members []database.GetGroupMembersRow
+		Members     []database.GetGroupMembersRow `json:"members"`
+		AccessToken string                        `json:"access_token"`
 	}
 
 	// decoding request body
@@ -224,7 +225,8 @@ func (apiConfig *ApiConfig) HandleGetAllMembersOfGroup(w http.ResponseWriter, r 
 
 	// creating response
 	utility.RespondWithJson(w, http.StatusOK, response{
-		Members: groupMembers,
+		Members:     groupMembers,
+		AccessToken: newAccessToken,
 	})
 }
 
