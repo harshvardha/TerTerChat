@@ -22,7 +22,9 @@ values($1, $2, NOW());
 delete from group_admins where user_id = $1 and group_id = $2;
 
 -- name: GetGroupMembers :many
-select groups.name, users.username from groups join users_groups on groups.id = users_groups.group_id join users on users.id = users_groups.user_id where groups.id = $1;
+select users.id, users.username from users
+join users_groups on users.id = users_groups.user_id
+where users_groups.group_id = $1 and users.id != $2;
 
 -- name: GetGroupMembersPhonenumbers :many
 select users.phonenumber from users_groups join users on users_groups.user_id = users.id where users_groups.group_id = $1;

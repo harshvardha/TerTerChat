@@ -87,16 +87,23 @@ func (q *Queries) GetGroupAdmins(ctx context.Context, id uuid.UUID) ([]GetGroupA
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-select groups.name, users.username from groups join users_groups on groups.id = users_groups.group_id join users on users.id = users_groups.user_id where groups.id = $1
+select users.id, users.username from users
+join users_groups on users.id = users_groups.user_id
+where users_groups.group_id = $1 and users.id != $2
 `
 
+type GetGroupMembersParams struct {
+	GroupID uuid.UUID
+	ID      uuid.UUID
+}
+
 type GetGroupMembersRow struct {
-	Name     string
+	ID       uuid.UUID
 	Username string
 }
 
-func (q *Queries) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]GetGroupMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers, id)
+func (q *Queries) GetGroupMembers(ctx context.Context, arg GetGroupMembersParams) ([]GetGroupMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, arg.GroupID, arg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +111,7 @@ func (q *Queries) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]GetGroup
 	var items []GetGroupMembersRow
 	for rows.Next() {
 		var i GetGroupMembersRow
-		if err := rows.Scan(&i.Name, &i.Username); err != nil {
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

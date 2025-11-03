@@ -180,6 +180,54 @@ func (apiConfig *ApiConfig) HandleRemoveGroup(w http.ResponseWriter, r *http.Req
 	})
 }
 
+/*
+endpoint: /api/v1/group/members
+this endpoint will provide list of all the members of the group
+whose id is provided with request
+*/
+func (apiConfig *ApiConfig) HandleGetAllMembersOfGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+	type request struct {
+		GroupID uuid.UUID `json:"group_id"`
+	}
+
+	type response struct {
+		Members []database.GetGroupMembersRow
+	}
+
+	// decoding request body
+	decoder := json.NewDecoder(r.Body)
+	params := request{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("[/api/v1/group/members]: error decoding request body: %v", err)
+		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// validating request body
+	if params.GroupID == uuid.Nil {
+		log.Printf("[/api/v1/group/members]: empty group id field")
+		utility.RespondWithError(w, http.StatusNotAcceptable, "empty group id field")
+		return
+	}
+
+	// fetching all the group members
+	groupMembers, err := apiConfig.DB.GetGroupMembers(r.Context(), database.GetGroupMembersParams{
+		GroupID: params.GroupID,
+		ID:      userID,
+	})
+	if err != nil {
+		log.Printf("[/api/v1/group/members]: error fetching group members: %v", err)
+		utility.RespondWithError(w, http.StatusNoContent, "group id invalid")
+		return
+	}
+
+	// creating response
+	utility.RespondWithJson(w, http.StatusOK, response{
+		Members: groupMembers,
+	})
+}
+
 // endpoint: /api/v1/group/add/user
 func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
