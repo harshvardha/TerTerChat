@@ -135,7 +135,10 @@ func (apiConfig *ApiConfig) HandleUpdateGroupName(w http.ResponseWriter, r *http
 	})
 }
 
-// endpoint: /api/v1/group/remove
+/*
+endpoint: /api/v1/group/remove
+This endpoint helps in deleting the group
+*/
 func (apiConfig *ApiConfig) HandleRemoveGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		GroupID uuid.UUID `json:"group_id"`
@@ -230,7 +233,10 @@ func (apiConfig *ApiConfig) HandleGetAllMembersOfGroup(w http.ResponseWriter, r 
 	})
 }
 
-// endpoint: /api/v1/group/add/user
+/*
+endpoint: /api/v1/group/add/user
+This endpoint helps in adding a new member to the group
+*/
 func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
@@ -326,7 +332,10 @@ func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.
 	})
 }
 
-// endpoint: /api/v1/group/remove/user
+/*
+endpoint: /api/v1/group/member/remove
+This endpoint helps in removing a member from the group
+*/
 func (apiConfig *ApiConfig) HandleRemoveUserFromGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
 		UserID  uuid.UUID `json:"user_id"`
