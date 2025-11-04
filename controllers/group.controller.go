@@ -607,3 +607,49 @@ func (apiConfig *ApiConfig) HandleRemoveUserFromAdmin(w http.ResponseWriter, r *
 		AccessToken: newAccessToken,
 	})
 }
+
+/*
+endpoint: /api/v1/group/list/admins
+This endpoint will return list of all admins of a group
+*/
+func (apiConfig *ApiConfig) HandleGetAllAdminsForGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
+	type request struct {
+		GroupID uuid.UUID `json:"group_id"`
+	}
+
+	type response struct {
+		Admins      []database.GetGroupAdminsRow `json:"admins"`
+		AccessToken string                       `json:"access_token"`
+	}
+
+	// decoding request body
+	decoder := json.NewDecoder(r.Body)
+	params := request{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("[/api/v1/group/list/admins]: error decoding request body: %v", err)
+		utility.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// validating request body
+	if params.GroupID == uuid.Nil {
+		log.Printf("[/api/v1/group/list/admins]: nil group id")
+		utility.RespondWithError(w, http.StatusNotAcceptable, "nil group id")
+		return
+	}
+
+	// finding all the admins for group
+	admins, err := apiConfig.DB.GetGroupAdmins(r.Context(), params.GroupID)
+	if err != nil {
+		log.Printf("[/api/v1/group/list/admins]: error fetching admins for group id %s: %v", params.GroupID.String(), err)
+		utility.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// creating response
+	utility.RespondWithJson(w, http.StatusOK, response{
+		Admins:      admins,
+		AccessToken: newAccessToken,
+	})
+}
