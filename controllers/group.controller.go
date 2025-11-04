@@ -239,8 +239,8 @@ This endpoint helps in adding a new member to the group
 */
 func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.Request, userID uuid.UUID, newAccessToken string) {
 	type request struct {
-		UserID  uuid.UUID `json:"user_id"`
-		GroupID uuid.UUID `json:"group_id"`
+		MemberPhonenumber string    `json:"member_phonenumber"`
+		GroupID           uuid.UUID `json:"group_id"`
 	}
 
 	// extracting request body
@@ -254,15 +254,23 @@ func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.
 	}
 
 	// validating request body
-	if params.UserID == uuid.Nil {
-		log.Printf("[/api/v1/group/user/add]: empty user id field")
-		utility.RespondWithError(w, http.StatusNotAcceptable, "empty user id field")
+	if err = apiConfig.DataValidator.Var(params.MemberPhonenumber, "required,phonenumber"); err != nil {
+		log.Printf("[/api/v1/group/user/add]: invalud member phonenumber: %v", err)
+		utility.RespondWithError(w, http.StatusNotAcceptable, err.Error())
 		return
 	}
 
 	if params.GroupID == uuid.Nil {
 		log.Printf("[/api/v1/group/user/remove]: empty group id field")
 		utility.RespondWithError(w, http.StatusNotAcceptable, "empty group id field")
+		return
+	}
+
+	// fetching the user_id for the provided member phonenumber
+	user, err := apiConfig.DB.GetUserByPhonenumber(r.Context(), params.MemberPhonenumber)
+	if err != nil {
+		log.Printf("[/api/v1/group/user/add]: no user found with phonenumber %s: %v", params.MemberPhonenumber, err)
+		utility.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -278,7 +286,7 @@ func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.
 
 	// adding user to group
 	if err = apiConfig.DB.AddUserToGroup(r.Context(), database.AddUserToGroupParams{
-		UserID:  params.UserID,
+		UserID:  user.ID,
 		GroupID: params.GroupID,
 	}); err != nil {
 		log.Printf("[/api/v1/group/user/add]: error adding user to group: %v", err)
@@ -288,7 +296,7 @@ func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.
 
 	// if user was previously part of the group then mark is_receiver_allowed_to_see = true
 	apiConfig.DB.MarkIsAllowedToSeeAsTrueForSpecificGroupMember(r.Context(), database.MarkIsAllowedToSeeAsTrueForSpecificGroupMemberParams{
-		MemberID: params.UserID,
+		MemberID: user.ID,
 		GroupID:  params.GroupID,
 	})
 
@@ -297,16 +305,10 @@ func (apiConfig *ApiConfig) HandleAddUserToGroup(w http.ResponseWriter, r *http.
 	groupEvent.Name = eventhandlers.ADD_USER_TO_GROUP
 
 	// creating group actions
-	user, err := apiConfig.DB.GetUserById(r.Context(), params.UserID)
-	if err != nil {
-		log.Printf("[/api/v1/group/user/add]: error fetching requested user information: %v", err)
-		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	groupEvent.Group = eventhandlers.Group{
 		ID:          params.GroupID,
 		Username:    user.Username,
-		Phonenumber: user.Phonenumber,
+		Phonenumber: params.MemberPhonenumber,
 	}
 
 	// fetching group members phonenumbers
